@@ -1,0 +1,131 @@
+# Laptop-mode stack for lakeorm smoke testing. Mirrors the
+# production Helm chart's Spark Connect tunings. For the full
+# production deployment (k8s, Helm, the canonical Spark Connect
+# image with baked-in JARs), see the lake-k8s repository.
+#
+# Services:
+#   - SeaweedFS on :8333      (S3 API; creds dorm/dorm; bucket dorm-local)
+#   - Spark Connect on :15002 (Spark 4.0 + Iceberg + Delta + Hadoop-AWS)
+#
+# Spark's Prometheus metric servlet is enabled on :4040 for operators
+# who want to point their own scraper at it. No Prometheus or Grafana
+# container is shipped here — the local stack is the bare minimum
+# needed to exercise dorm against a real lakehouse.
+#
+# Iceberg uses a Hadoop catalog rooted at the SeaweedFS warehouse —
+# no separate REST catalog service. Metadata lives alongside the data
+# as `metadata/` JSON files. Simpler, one less moving part. Production
+# deployments that want multi-tenancy or git-like branching can swap
+# in Polaris / Unity / REST catalogs via the chart overlays.
+#
+# Usage:
+#   make docker-up
+#   # wait ~60s for the Spark Connect server to finish resolving JARs
+#   go run ./examples/basic
+#   make docker-down
+
+services:
+  seaweedfs:
+    # 3.71 is tested against the Hadoop-AWS magic committer path. Older
+    # versions have multipart-upload edge cases the committer trips.
+    image: chrislusf/seaweedfs:3.71
+    command: server -s3 -s3.config=/etc/seaweedfs/config.json -ip.bind=0.0.0.0
+    ports:
+      # 8333 is SeaweedFS's canonical S3 port. Matches lake-k8s.
+      - "8333:8333"
+      # 9333 is the master API — used by `weed` CLI; harmless to expose.
+      - "9333:9333"
+    volumes:
+      - ./.local/seaweed/config.json:/etc/seaweedfs/config.json:ro
+      - seaweed-data:/data
+    healthcheck:
+      # S3 root returns 403 without auth which wget treats as a hard
+      # error — TCP port check is what we actually want here.
+      test: ["CMD", "nc", "-z", "localhost", "8333"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  # Small init that creates the dorm-local bucket once SeaweedFS is
+  # healthy. SeaweedFS's -s3 server doesn't auto-create buckets on
+  # first PUT (unlike MinIO), and Spark S3A treats a missing bucket as
+  # a hard "NoSuchBucket" error. This init exits after creation; the
+  # spark-connect service blocks on its successful completion.
+  bucket-init:
+    image: chrislusf/seaweedfs:3.71
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "echo 's3.bucket.create -name=dorm-local' | weed shell -master=seaweedfs:9333"
+    restart: "no"
+
+  spark-connect:
+    # The canonical dorm-spark-connect image (built from
+    # lake-k8s/images/spark-connect/Dockerfile) is preferred. Fall back
+    # to apache/spark:3.5.4 + --packages resolution so the first-run
+    # docker-compose path works before the custom image is built.
+    image: ${DORM_SPARK_IMAGE:-apache/spark:4.0.0}
+    # spark-submit stays in the foreground for the lifetime of the
+    # driver; start-connect-server.sh daemonizes and exits, which
+    # causes the container to die immediately. Equivalent semantics,
+    # correct lifecycle.
+    #
+    # Spark 4.0.0 uses Scala 2.13, not 2.12 — the Iceberg / Delta /
+    # spark-connect packages all need the _2.13 suffix.
+    command: >
+      /opt/spark/bin/spark-submit
+      --class org.apache.spark.sql.connect.service.SparkConnectServer
+      --name SparkConnect
+      --packages org.apache.spark:spark-connect_2.13:4.0.0,org.apache.iceberg:iceberg-spark-runtime-4.0_2.13:1.10.0,io.delta:delta-spark_2.13:4.0.0,org.apache.hadoop:hadoop-aws:3.4.1
+      --conf spark.jars.ivy=/tmp/.ivy
+      --conf spark.connect.grpc.binding.port=15002
+
+      --conf spark.connect.grpc.maxInboundMessageSize=1073741824
+      --conf spark.connect.grpc.maxOutboundMessageSize=1073741824
+      --conf spark.connect.grpc.arrow.maxBatchSize=8m
+      --conf spark.connect.execute.reattachable=true
+      --conf spark.connect.execute.reattachable.senderMaxStreamDuration=120m
+      --conf spark.connect.session.manager.defaultSessionTimeout=180m
+
+      --conf spark.sql.execution.arrow.maxRecordsPerBatch=50000
+      --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
+
+      --conf spark.ui.prometheus.enabled=true
+      --conf spark.sql.streaming.metricsEnabled=true
+      --conf spark.metrics.conf.*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet
+      --conf spark.metrics.conf.*.sink.prometheusServlet.path=/metrics/prometheus
+
+      --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,io.delta.sql.DeltaSparkSessionExtension
+      --conf spark.sql.catalog.dorm=org.apache.iceberg.spark.SparkCatalog
+      --conf spark.sql.catalog.dorm.type=hadoop
+      --conf spark.sql.catalog.dorm.warehouse=s3a://dorm-local/lake
+      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+
+      --conf spark.hadoop.fs.s3a.endpoint=http://seaweedfs:8333
+      --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.access.key=dorm
+      --conf spark.hadoop.fs.s3a.secret.key=dorm
+      --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
+      --conf spark.hadoop.fs.s3a.fast.upload=true
+      --conf spark.hadoop.fs.s3a.fast.upload.buffer=bytebuffer
+      --conf spark.hadoop.fs.s3a.multipart.size=104857600
+      --conf spark.hadoop.fs.s3a.connection.maximum=200
+      --conf spark.hadoop.fs.s3a.threads.max=64
+
+      --conf spark.databricks.delta.schema.autoMerge.enabled=true
+      --conf spark.databricks.delta.optimizeWrite.enabled=true
+    ports:
+      - "15002:15002"
+      # 4040 is the Spark UI (and the PrometheusServlet mount path).
+      # Exposed so Prometheus can scrape it and so operators can hit
+      # the UI directly without docker exec.
+      - "4040:4040"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+      bucket-init:
+        condition: service_completed_successfully
+
+volumes:
+  seaweed-data:

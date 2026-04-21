@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "dorm",
+      "credentials": [
+        {
+          "accessKey": "dorm",
+          "secretKey": "dorm"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

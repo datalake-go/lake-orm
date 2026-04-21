@@ -1,0 +1,61 @@
+# Go build + vet + test on every PR and every push to main.
+#
+# The replace directive in go.mod points at ../spark-connect-go, so
+# CI checks out the fork as a sibling of this repo and lets Go resolve
+# it through the replace. Keeps production-ready ergonomics
+# (git clone one repo, go build) while unblocking in-flight fork work.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+jobs:
+  build:
+    name: build + vet + test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dorm
+        uses: actions/checkout@v4
+        with:
+          path: dorm
+
+      - name: Checkout fork (sibling layout for go.mod replace)
+        uses: actions/checkout@v4
+        with:
+          repository: datalake-go/spark-connect-go
+          ref: main
+          path: spark-connect-go
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: dorm/go.mod
+          cache-dependency-path: dorm/go.sum
+
+      - name: go mod download
+        working-directory: dorm
+        run: go mod download
+
+      - name: go vet
+        working-directory: dorm
+        run: go vet ./...
+
+      - name: go build
+        working-directory: dorm
+        run: go build ./...
+
+      - name: go test
+        working-directory: dorm
+        # -race catches concurrency regressions in the session pool +
+        # backpressure semaphore. No integration or e2e here — those
+        # run in a separate workflow once the docker-compose stack
+        # image is on a public registry.
+        run: go test -race ./...
