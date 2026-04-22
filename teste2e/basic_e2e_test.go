@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -51,7 +51,7 @@ func TestE2E_Migrate_InsertSmall_Stream(t *testing.T) {
 		{ID: types.NewSortableID(), Email: "alice@example.com", Country: "UK", CreatedAt: f.Now()},
 		{ID: types.NewSortableID(), Email: "bob@example.com", Country: "US", CreatedAt: f.Now()},
 	}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaGRPC()); err != nil {
@@ -87,9 +87,9 @@ func openClientForE2E(t *testing.T) lakeorm.Client {
 		t.Skip("teste2e requires DORM_SPARK_URI and DORM_S3_DSN — run `make docker-up` and export the printed endpoints, or wait for the dorm-spark-connect testcontainer image to land")
 	}
 
-	store, err := backend.S3(s3DSN)
+	store, err := backends.S3(s3DSN)
 	if err != nil {
-		t.Fatalf("backend.S3(%q): %v", s3DSN, err)
+		t.Fatalf("backends.S3(%q): %v", s3DSN, err)
 	}
 	db, err := lakeorm.Open(
 		spark.Remote(sparkURI),

@@ -14,7 +14,7 @@
 //
 //  2. APPLICATION — lake-goose (separate binary) runs those `.sql`
 //     files against the Spark Connect database/sql driver in order,
-//     with the atlas.sum manifest verifying no post-generation
+//     with the lakeorm.sum manifest verifying no post-generation
 //     edits slipped in.
 //
 // Treating authoring and application separately is the Django /
@@ -35,9 +35,9 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -75,7 +75,7 @@ func main() {
 	// spark.Remote accepts a URL that is never dialled until the
 	// first Driver.Execute, so the memory-backed backend + unreachable
 	// host is a perfectly valid authoring-only setup.
-	store := backend.Memory("migrations-example")
+	store := backends.Memory("migrations-example")
 	db, err := lakeorm.Open(
 		spark.Remote("sc://unused:15002"),
 		iceberg.Dialect(),
@@ -108,12 +108,12 @@ func main() {
 		fmt.Println("  " + filepath.Base(f))
 	}
 
-	// Show atlas.sum — lines covering every file + the manifest
+	// Show lakeorm.sum — lines covering every file + the manifest
 	// hash. Downstream tooling can detect post-generation edits
 	// by re-hashing and comparing.
-	sum, err := os.ReadFile(filepath.Join(outDir, "atlas.sum"))
+	sum, err := os.ReadFile(filepath.Join(outDir, "lakeorm.sum"))
 	if err != nil {
-		log.Fatalf("read atlas.sum: %v", err)
+		log.Fatalf("read lakeorm.sum: %v", err)
 	}
-	fmt.Println("\natlas.sum:\n" + string(sum))
+	fmt.Println("\nlakeorm.sum:\n" + string(sum))
 }

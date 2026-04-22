@@ -5,6 +5,7 @@ import (
 	"errors"
 	"iter"
 	"testing"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // fakeDataFrame is a driver-agnostic DataFrame fixture for the
@@ -26,13 +27,13 @@ type dummyResult struct{ X int }
 
 func TestCollectAs_NilDataFrameReturnsDriverMismatch(t *testing.T) {
 	_, err := CollectAs[dummyResult](context.Background(), nil)
-	if !errors.Is(err, ErrDriverMismatch) {
-		t.Errorf("err = %v, want wraps ErrDriverMismatch", err)
+	if !errors.Is(err, lkerrors.ErrDriverMismatch) {
+		t.Errorf("err = %v, want wraps lkerrors.ErrDriverMismatch", err)
 	}
 }
 
 // Pre-duckdb-driver lake-orm errored on any non-Spark DataFrame with
-// ErrDriverMismatch. The typed helpers now fall back to a generic
+// lkerrors.ErrDriverMismatch. The typed helpers now fall back to a generic
 // Row + Scanner path, so non-Spark drivers work unchanged through
 // Query[T] / CollectAs[T]. The fakeDataFrame below is the contract
 // fixture: an empty generic Stream returns an empty slice cleanly,
@@ -64,15 +65,15 @@ func TestStreamAs_NonSparkDriverFallsBackToGenericPath(t *testing.T) {
 
 func TestFirstAs_NilDataFrameReturnsDriverMismatch(t *testing.T) {
 	_, err := FirstAs[dummyResult](context.Background(), nil)
-	if !errors.Is(err, ErrDriverMismatch) {
-		t.Errorf("err = %v, want wraps ErrDriverMismatch", err)
+	if !errors.Is(err, lkerrors.ErrDriverMismatch) {
+		t.Errorf("err = %v, want wraps lkerrors.ErrDriverMismatch", err)
 	}
 }
 
 func TestFirstAs_NonSparkEmptyStreamReturnsNoRows(t *testing.T) {
 	df := &fakeDataFrame{native: "not-a-spark-df"}
 	_, err := FirstAs[dummyResult](context.Background(), df)
-	if !errors.Is(err, ErrNoRows) {
-		t.Errorf("err = %v, want wraps ErrNoRows", err)
+	if !errors.Is(err, lkerrors.ErrNoRows) {
+		t.Errorf("err = %v, want wraps lkerrors.ErrNoRows", err)
 	}
 }

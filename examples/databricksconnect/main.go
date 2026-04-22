@@ -35,9 +35,10 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/delta"
-	"github.com/datalake-go/lake-orm/driver/databricksconnect"
+	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/delta"
+	"github.com/datalake-go/lake-orm/drivers/databricksconnect"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -66,9 +67,9 @@ func main() {
 
 	drv := databricksconnect.Driver(auth)
 
-	store, err := backend.S3(mustEnv("WAREHOUSE_URI"))
+	store, err := backends.S3(mustEnv("WAREHOUSE_URI"))
 	if err != nil {
-		log.Fatalf("backend.S3: %v", err)
+		log.Fatalf("backends.S3: %v", err)
 	}
 
 	// Delta is the native Databricks table format. Swap to
@@ -90,7 +91,7 @@ func main() {
 		Country:   "UK",
 		CreatedAt: time.Now().Truncate(time.Microsecond),
 	}
-	if err := lakeorm.Validate(u); err != nil {
+	if err := structs.Validate(u); err != nil {
 		log.Fatalf("validate: %v", err)
 	}
 	if err := db.Insert(ctx, []*User{u}, lakeorm.ViaObjectStorage()); err != nil {

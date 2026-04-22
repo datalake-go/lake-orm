@@ -50,7 +50,7 @@ func TestE2E_Join_TypedScan(t *testing.T) {
 	alice := &User{ID: types.NewSortableID(), Email: "alice@example.com", Country: "UK", CreatedAt: f.Now()}
 	bob := &User{ID: types.NewSortableID(), Email: "bob@example.com", Country: "US", CreatedAt: f.Now()}
 	users := []*User{alice, bob}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		t.Fatalf("Validate users: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaObjectStorage()); err != nil {
@@ -62,7 +62,7 @@ func TestE2E_Join_TypedScan(t *testing.T) {
 		{ID: types.NewSortableID(), UserID: string(alice.ID), AmountPence: 1750, PlacedAt: f.Now()},
 		{ID: types.NewSortableID(), UserID: string(bob.ID), AmountPence: 9999, PlacedAt: f.Now()},
 	}
-	if err := lakeorm.Validate(orders); err != nil {
+	if err := structs.Validate(orders); err != nil {
 		t.Fatalf("Validate orders: %v", err)
 	}
 	if err := db.Insert(ctx, orders, lakeorm.ViaObjectStorage()); err != nil {
@@ -122,7 +122,7 @@ func TestE2E_Stream_TypedQuery(t *testing.T) {
 		{ID: types.NewSortableID(), Email: "stream-alice@example.com", Country: "UK", CreatedAt: f.Now()},
 		{ID: types.NewSortableID(), Email: "stream-bob@example.com", Country: "UK", CreatedAt: f.Now()},
 	}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaObjectStorage()); err != nil {

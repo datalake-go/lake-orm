@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"fmt"
 	"io"
@@ -19,7 +20,7 @@ import (
 // it a bursty producer can OOM the process even when the partition
 // writer is rotating correctly, because parquet row groups buffer in
 // memory between Flush calls.
-func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *LakeSchema, records any) error {
+func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *structs.LakeSchema, records any) error {
 	if err := c.sem.Acquire(ctx, 1); err != nil {
 		return fmt.Errorf("lakeorm: acquire ingest slot: %w", err)
 	}
@@ -27,7 +28,7 @@ func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *La
 
 	// Synthesize the parquet schema from the user's lake tags. Users
 	// don't declare `parquet:"..."` tags; the lake tag is authoritative.
-	ps, err := BuildParquetSchema(schema)
+	ps, err := parquet.NewSchema(schema)
 	if err != nil {
 		return fmt.Errorf("lakeorm: build parquet schema: %w", err)
 	}
@@ -85,7 +86,7 @@ func (u *backendUploader) Writer(ctx context.Context, key string) (io.WriteClose
 
 // writeRecords unpacks records of any shape (*T, []*T, []T) and hands
 // them to the partition writer as a flat []any slice. The writer's
-// row converter (built from BuildParquetSchema) handles the
+// row converter (built from parquet.NewSchema) handles the
 // per-row projection into the parquet schema's synthesized struct.
 func writeRecords(pw *parquet.PartitionWriter, records any) error {
 	rv := reflect.ValueOf(records)
@@ -119,10 +120,10 @@ func writeRecords(pw *parquet.PartitionWriter, records any) error {
 	}
 }
 
-// schemaFromRecords resolves the LakeSchema for the element type and
+// schemaFromRecords resolves the structs.LakeSchema for the element type and
 // reports the record count plus a coarse bytes-per-record estimate for
 // the Dialect's fast-path routing decision.
-func schemaFromRecords(records any) (*LakeSchema, int, int, error) {
+func schemaFromRecords(records any) (*structs.LakeSchema, int, int, error) {
 	rv := reflect.ValueOf(records)
 	switch rv.Kind() {
 	case reflect.Ptr:
@@ -130,7 +131,7 @@ func schemaFromRecords(records any) (*LakeSchema, int, int, error) {
 			return nil, 0, 0, nil
 		}
 		elem := rv.Elem()
-		schema, err := ParseSchema(elem.Type())
+		schema, err := structs.ParseSchema(elem.Type())
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -141,13 +142,13 @@ func schemaFromRecords(records any) (*LakeSchema, int, int, error) {
 		for elemType.Kind() == reflect.Ptr {
 			elemType = elemType.Elem()
 		}
-		schema, err := ParseSchema(elemType)
+		schema, err := structs.ParseSchema(elemType)
 		if err != nil {
 			return nil, 0, 0, err
 		}
 		return schema, n, n * estimateRowBytes(elemType), nil
 	case reflect.Struct:
-		schema, err := ParseSchema(rv.Type())
+		schema, err := structs.ParseSchema(rv.Type())
 		if err != nil {
 			return nil, 0, 0, err
 		}

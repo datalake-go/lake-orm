@@ -170,16 +170,3 @@ const (
 	UpdateOnConflict
 )
 
-// UpdateOption / UpsertOption / DeleteOption are kept as stubs so the
-// Client signature doesn't shift when v1 adds real tuning knobs.
-type (
-	UpdateOption func(*updateConfig)
-	UpsertOption func(*upsertConfig)
-	DeleteOption func(*deleteConfig)
-)
-
-type (
-	updateConfig struct{}
-	upsertConfig struct{ on MergeAction }
-	deleteConfig struct{}
-)

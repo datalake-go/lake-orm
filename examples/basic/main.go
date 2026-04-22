@@ -21,9 +21,10 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -47,9 +48,9 @@ func main() {
 		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	)
 
-	store, err := backend.S3(s3DSN)
+	store, err := backends.S3(s3DSN)
 	if err != nil {
-		log.Fatalf("backend.S3: %v", err)
+		log.Fatalf("backends.S3: %v", err)
 	}
 
 	// The Iceberg catalog itself is configured on the Spark Connect
@@ -81,12 +82,12 @@ func main() {
 		Country:   "UK",
 		CreatedAt: time.Now().Truncate(time.Microsecond),
 	}
-	if err := lakeorm.Validate(alice); err != nil {
+	if err := structs.Validate(alice); err != nil {
 		log.Fatalf("validate: %v", err)
 	}
 
 	// Insert via the object-storage fast path — writes a parquet part
-	// through backend.S3, then issues one INSERT ... SELECT FROM
+	// through backends.S3, then issues one INSERT ... SELECT FROM
 	// parquet.`<staging>/*.parquet` on the Spark server. This is the
 	// path lakeorm's throughput claim actually rides. The direct
 	// gRPC path is a v0 stub (`lakeorm.ViaGRPC()` returns ErrNotImplemented).

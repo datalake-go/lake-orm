@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ type genUser struct {
 }
 
 // TestMigrateGenerate_WritesGooseFile covers the main flow:
-// LakeSchema → migrate.Schema → Diff (treated as bootstrap in v0
+// structs.LakeSchema → migrate.Schema → Diff (treated as bootstrap in v0
 // because the current-state read is still stubbed) → goose-format
 // file on disk. We verify the file exists, has the expected goose
 // annotations, and passes through the `-- dam:ack` rule for the
@@ -75,18 +76,14 @@ func TestMigrateGenerate_BootstrapTableCreatesEmptyFile(t *testing.T) {
 // Iceberg/Delta instance.
 type stubDialect struct{ name string }
 
-func (s stubDialect) Name() string                               { return s.name }
-func (s stubDialect) IndexStrategy(IndexIntent) IndexStrategy    { return "" }
-func (s stubDialect) LayoutStrategy(LayoutIntent) LayoutStrategy { return "" }
-func (s stubDialect) Maintenance() Maintenance                   { return nil }
-func (s stubDialect) CreateTableDDL(*LakeSchema, types.Location) (string, error) {
+func (s stubDialect) Name() string                                                   { return s.name }
+func (s stubDialect) IndexStrategy(structs.IndexIntent) structs.IndexStrategy        { return "" }
+func (s stubDialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy     { return "" }
+func (s stubDialect) CreateTableDDL(*structs.LakeSchema, types.Location) (string, error) {
 	return "", nil
 }
-func (s stubDialect) AlterTableDDL(*LakeSchema, *TableInfo) ([]string, error) { return nil, nil }
-func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)           { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error)          { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanUpsert(UpsertRequest) (ExecutionPlan, error)         { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanDelete(DeleteRequest) (ExecutionPlan, error)         { return ExecutionPlan{}, nil }
+func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)  { return ExecutionPlan{}, nil }
+func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error) { return ExecutionPlan{}, nil }
 
 // TestMigrateGenerate_LegacyStateTriggersIngestIDAdd pins the
 // Phase-3 migration path from issue #63: a table whose most recent
@@ -144,27 +141,3 @@ func TestMigrateGenerate_LegacyStateTriggersIngestIDAdd(t *testing.T) {
 	}
 }
 
-func TestSlugifyTable(t *testing.T) {
-	cases := map[string]string{
-		"users":             "users",
-		"my.db.users":       "my_db_users",
-		"Weird Table Name!": "weird_table_name",
-		"":                  "",
-		"___":               "",
-	}
-	for in, want := range cases {
-		if got := slugifyTable(in); got != want {
-			t.Errorf("slugifyTable(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-func TestAssertSchema_StubPath(t *testing.T) {
-	c := &client{dialect: stubDialect{name: "iceberg"}}
-	if err := c.AssertSchema(context.Background()); err != nil {
-		t.Errorf("empty input should be no-op, got %v", err)
-	}
-	if err := c.AssertSchema(context.Background(), &genUser{}); err == nil {
-		t.Errorf("expected ErrNotImplemented for populated call in v0")
-	}
-}
