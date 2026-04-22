@@ -1,8 +1,6 @@
 package spark
 
 import (
-	"strings"
-
 	"github.com/datalake-go/lake-orm"
 )
 
@@ -10,11 +8,9 @@ import (
 // underlying error matches the Databricks "[FailedPrecondition] + state
 // Pending" pattern. Otherwise returns the original error unchanged.
 //
-// Duplicated logic in lakeorm.NewClusterNotReady (the library exports it
-// so users can inspect any error from the driver); kept here as a thin
-// helper so the driver doesn't need to import lakeorm just to name the
-// detection — callers in the Spark driver path call this from every
-// RPC site.
+// The underlying classification is lakeorm.NewClusterNotReady; this
+// thin wrapper lets every RPC site in the driver convert raw errors
+// to the typed sentinel without re-implementing the pattern.
 func translateClusterError(err error) error {
 	if err == nil {
 		return nil
@@ -23,11 +19,4 @@ func translateClusterError(err error) error {
 		return classified
 	}
 	return err
-}
-
-// looksLikeClusterPending is kept separate for unit testing without
-// the exported sentinel wrapper.
-func looksLikeClusterPending(msg string) bool {
-	return strings.Contains(msg, "[FailedPrecondition]") &&
-		(strings.Contains(msg, "state Pending") || strings.Contains(msg, "state PENDING"))
 }
