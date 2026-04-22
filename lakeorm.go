@@ -45,7 +45,6 @@ func Open(driver Driver, dialect Dialect, backend Backend, opts ...ClientOption)
 		dialect: dialect,
 		backend: backend,
 		cfg:     cfg,
-		scanner: NewScanner(),
 		sem:     semaphore.NewWeighted(int64(cfg.maxInflightIngests)),
 	}
 

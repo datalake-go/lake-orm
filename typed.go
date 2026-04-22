@@ -6,6 +6,8 @@ import (
 	"iter"
 
 	sparksql "github.com/datalake-go/spark-connect-go/spark/sql"
+
+	"github.com/datalake-go/lake-orm/internal/scanner"
 )
 
 // CollectAs materialises every row of df into []T. Uses the Spark-
@@ -96,14 +98,14 @@ func sparkDataFrame(df DataFrame) (sparksql.DataFrame, bool) {
 // df.Stream(ctx) and scans each Row into a fresh T via the
 // reflection scanner shared with Client.Query.
 func collectViaStream[T any](ctx context.Context, df DataFrame) ([]T, error) {
-	scanner := NewScanner()
+	sc := scanner.NewScanner()
 	var out []T
 	for row, rerr := range df.Stream(ctx) {
 		if rerr != nil {
 			return out, rerr
 		}
 		var dest T
-		if err := scanner.ScanRow(row, &dest, nil); err != nil {
+		if err := sc.ScanRow(row.Columns(), row.Values(), &dest); err != nil {
 			return out, err
 		}
 		out = append(out, dest)
@@ -115,7 +117,7 @@ func collectViaStream[T any](ctx context.Context, df DataFrame) ([]T, error) {
 // yield function directly so the outer iter.Seq2 wrapper stays in
 // StreamAs and this helper doesn't allocate another closure.
 func streamViaStream[T any](ctx context.Context, df DataFrame, yield func(T, error) bool) {
-	scanner := NewScanner()
+	sc := scanner.NewScanner()
 	var zero T
 	for row, rerr := range df.Stream(ctx) {
 		if rerr != nil {
@@ -125,7 +127,7 @@ func streamViaStream[T any](ctx context.Context, df DataFrame, yield func(T, err
 			continue
 		}
 		var dest T
-		if err := scanner.ScanRow(row, &dest, nil); err != nil {
+		if err := sc.ScanRow(row.Columns(), row.Values(), &dest); err != nil {
 			if !yield(zero, err) {
 				return
 			}
@@ -141,13 +143,13 @@ func streamViaStream[T any](ctx context.Context, df DataFrame, yield func(T, err
 // when the stream is empty. Terminates the iteration after the
 // first successful row.
 func firstViaStream[T any](ctx context.Context, df DataFrame) (*T, error) {
-	scanner := NewScanner()
+	sc := scanner.NewScanner()
 	for row, rerr := range df.Stream(ctx) {
 		if rerr != nil {
 			return nil, rerr
 		}
 		var dest T
-		if err := scanner.ScanRow(row, &dest, nil); err != nil {
+		if err := sc.ScanRow(row.Columns(), row.Values(), &dest); err != nil {
 			return nil, err
 		}
 		return &dest, nil

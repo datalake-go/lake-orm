@@ -12,13 +12,12 @@ import (
 )
 
 // client is the default Client implementation. Holds the three
-// injected dependencies plus the scanner and backpressure semaphore.
+// injected dependencies plus the backpressure semaphore.
 type client struct {
 	driver  Driver
 	dialect Dialect
 	backend Backend
 	cfg     *clientConfig
-	scanner *Scanner
 	sem     *semaphore.Weighted
 }
 
