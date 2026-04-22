@@ -143,7 +143,7 @@ func ParseSchema(t reflect.Type) (*LakeSchema, error) {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("dorm: ParseSchema requires a struct type, got %v", t.Kind())
+		return nil, fmt.Errorf("lakeorm: ParseSchema requires a struct type, got %v", t.Kind())
 	}
 	if cached, ok := schemaCache.Load(t); ok {
 		return cached.(*LakeSchema), nil
@@ -251,7 +251,7 @@ func parseField(sf reflect.StructField, idx []int, tag string) (LakeField, bool,
 		return field, true, nil
 	}
 	if tag == "" {
-		// Untagged exported fields are ignored — the dorm tag is the contract.
+		// Untagged exported fields are ignored — the lake tag is the contract.
 		field.Ignored = true
 		return field, true, nil
 	}

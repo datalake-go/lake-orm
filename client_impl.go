@@ -131,7 +131,7 @@ func (c *client) Migrate(ctx context.Context, models ...any) error {
 	// Iceberg REST catalogs (Nessie / Polaris / Tabular) require the
 	// namespace to be explicitly registered before CREATE TABLE; Hive
 	// catalogs tolerate an implicit default. CREATE NAMESPACE IF NOT
-	// EXISTS is the portable shape that works for both. The "dorm"
+	// EXISTS is the portable shape that works for both. The "lakeorm"
 	// prefix matches the catalog name docker-compose / lake-k8s
 	// configures; v1 promotes this to Dialect.EnsureNamespace so the
 	// hardcoded prefix goes away.
@@ -169,7 +169,7 @@ func (c *client) Ping(ctx context.Context) error {
 func (c *client) Close() error { return c.driver.Close() }
 
 // MetricsRegistry is a v0 placeholder. v1+ returns a populated
-// *prometheus.Registry carrying the dorm_* counter / histogram /
+// *prometheus.Registry carrying the lakeorm_* counter / histogram /
 // gauge set documented in MONETIZATION.md.
 func (c *client) MetricsRegistry() *prometheus.Registry { return nil }
 

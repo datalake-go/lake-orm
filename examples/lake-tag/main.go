@@ -71,10 +71,10 @@ type Mixed struct {
 func main() {
 	ctx := context.Background()
 
-	sparkURI := envOr("DORM_SPARK_URI", "sc://localhost:15002")
+	sparkURI := envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")
 	s3DSN := envOr(
-		"DORM_S3_DSN",
-		"s3://dorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=dorm&secret_key=dorm",
+		"LAKEORM_S3_DSN",
+		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	)
 
 	store, err := backend.S3(s3DSN)

@@ -12,7 +12,7 @@ import (
 //
 // Duplicated logic in lakeorm.NewClusterNotReady (the library exports it
 // so users can inspect any error from the driver); kept here as a thin
-// helper so the driver doesn't need to import dorm just to name the
+// helper so the driver doesn't need to import lakeorm just to name the
 // detection — callers in the Spark driver path call this from every
 // RPC site.
 func translateClusterError(err error) error {

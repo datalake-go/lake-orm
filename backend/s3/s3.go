@@ -39,7 +39,7 @@ type Backend struct {
 // grammar; common forms:
 //
 //	backend.S3("s3://my-bucket/lake")
-//	backend.S3("s3://dorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=dorm&secret_key=dorm")
+//	backend.S3("s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm")
 //	backend.S3("s3://my-bucket/lake?endpoint=https://<acct>.r2.cloudflarestorage.com&path_style=true")
 func New(dsn string) (*Backend, error) {
 	u, err := url.Parse(dsn)
@@ -68,7 +68,7 @@ func New(dsn string) (*Backend, error) {
 	}
 
 	// Explicit creds in the DSN override the resolution chain. This is
-	// convenient for dorm-local; production deployments should use
+	// convenient for lakeorm-local; production deployments should use
 	// IRSA / instance profiles / env vars and leave these empty.
 	ak := q.Get("access_key")
 	sk := q.Get("secret_key")

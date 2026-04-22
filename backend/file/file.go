@@ -51,7 +51,7 @@ func (b *Backend) Writer(_ context.Context, key string) (io.WriteCloser, error) 
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir %s: %w", filepath.Dir(full), err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(full), ".dorm-*")
+	tmp, err := os.CreateTemp(filepath.Dir(full), ".lakeorm-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp: %w", err)
 	}

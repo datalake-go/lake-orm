@@ -131,7 +131,7 @@ func goTypeToDelta(t reflect.Type) (string, error) {
 			return "BINARY", nil
 		}
 		// Arrays come back through Spark as JSON strings in v0; real
-		// ARRAY<T> emission lands when the dorm tag grammar gains
+		// ARRAY<T> emission lands when the lake tag grammar gains
 		// element-type hints.
 		return "STRING", nil
 	case reflect.Struct:

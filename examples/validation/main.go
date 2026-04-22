@@ -68,14 +68,14 @@ func main() {
 	ctx := context.Background()
 
 	store, err := backend.S3(envOr(
-		"DORM_S3_DSN",
-		"s3://dorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=dorm&secret_key=dorm",
+		"LAKEORM_S3_DSN",
+		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	))
 	if err != nil {
 		log.Fatalf("backend.S3: %v", err)
 	}
 	db, err := lakeorm.Open(
-		spark.Remote(envOr("DORM_SPARK_URI", "sc://localhost:15002")),
+		spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")),
 		iceberg.Dialect(),
 		store,
 	)

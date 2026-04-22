@@ -15,7 +15,7 @@ import (
 )
 
 // OrderSpec is one ORDER BY clause. Kept as a local value type to
-// spare callers an import of the top-level dorm package for a
+// spare callers an import of the top-level lakeorm package for a
 // two-field struct.
 type OrderSpec struct {
 	Column string

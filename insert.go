@@ -21,15 +21,15 @@ import (
 // memory between Flush calls.
 func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *LakeSchema, records any) error {
 	if err := c.sem.Acquire(ctx, 1); err != nil {
-		return fmt.Errorf("dorm: acquire ingest slot: %w", err)
+		return fmt.Errorf("lakeorm: acquire ingest slot: %w", err)
 	}
 	defer c.sem.Release(1)
 
-	// Synthesize the parquet schema from the user's dorm tags. Users
-	// don't declare `parquet:"..."` tags; the dorm tag is authoritative.
+	// Synthesize the parquet schema from the user's lake tags. Users
+	// don't declare `parquet:"..."` tags; the lake tag is authoritative.
 	ps, err := BuildParquetSchema(schema)
 	if err != nil {
-		return fmt.Errorf("dorm: build parquet schema: %w", err)
+		return fmt.Errorf("lakeorm: build parquet schema: %w", err)
 	}
 
 	pw := parquet.NewPartitionWriter(
@@ -47,10 +47,10 @@ func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *La
 	)
 
 	if err := writeRecords(pw, records); err != nil {
-		return fmt.Errorf("dorm: write records to partitioner: %w", err)
+		return fmt.Errorf("lakeorm: write records to partitioner: %w", err)
 	}
 	if err := pw.Flush(); err != nil {
-		return fmt.Errorf("dorm: flush final part: %w", err)
+		return fmt.Errorf("lakeorm: flush final part: %w", err)
 	}
 	if pw.TotalRows() == 0 {
 		return nil
@@ -115,7 +115,7 @@ func writeRecords(pw *parquet.PartitionWriter, records any) error {
 	case reflect.Struct:
 		return pw.Write([]any{rv.Interface()})
 	default:
-		return fmt.Errorf("dorm: unsupported records type %v", rv.Kind())
+		return fmt.Errorf("lakeorm: unsupported records type %v", rv.Kind())
 	}
 }
 
@@ -153,7 +153,7 @@ func schemaFromRecords(records any) (*LakeSchema, int, int, error) {
 		}
 		return schema, 1, estimateRowBytes(rv.Type()), nil
 	default:
-		return nil, 0, 0, fmt.Errorf("dorm: unsupported records type %v", rv.Kind())
+		return nil, 0, 0, fmt.Errorf("lakeorm: unsupported records type %v", rv.Kind())
 	}
 }
 
