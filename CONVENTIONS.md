@@ -199,6 +199,17 @@ The root `lakeorm` package advertises exactly what `README.md` and `examples/` d
 
 **Rule of thumb:** if no external example, README section, or wiki page calls the identifier, it's internal. Tests don't count — tests can live inside the internal package.
 
+**Reward the reader.** Every exported identifier costs a reader cycles. A future contributor (or a future AI agent) opens the codebase, sees `types.SparkTableName`, spends time understanding what it is and how it relates to the rest, then discovers nothing uses it. That's wasted attention on something the library never intended to ship. Unexport it or delete it. The reader's time is a budget, and every leaked-out helper in the public surface is a tiny tax on that budget every time the file gets opened.
+
+**Concrete candidates to reap in future PRs** (updated as the surface gets reviewed):
+
+- ~~`types.SparkTableName` / `types.ParseSparkTableName`~~ — reaped: zero callers, never on contract.
+- `ExecutionPlan` / `PlanKind` / `StagingRef` / `WriteRequest` / `QueryRequest` / `OrderSpec` / `NewOrderSpec` / `WritePath` at root — driver-contract types users never touch. Move to `drivers/` when the Driver interface moves there.
+- `DataFrame` / `Row` / `RowStream` / `ColumnInfo` at root — going away with the Convertible restructure; the interface was a forced abstraction each driver had to implement whether or not it had a native DataFrame concept.
+- `QueryBuilder` / `Client.Query(ctx)` / `dynamicQuery` — going away with the Convertible restructure; the typed `Query[T]` family is the only documented read path.
+- `Client.DataFrame(ctx, sql, args)` — same; raw escape hatch moves to `Client.Driver()` + concrete type-assert.
+- `drivers/spark.SessionPool` — impl detail; users never construct session pools themselves, they let `Remote()` do it.
+
 **Why this matters.** Every public identifier is a contract — a promise that its signature, semantics, and behaviour won't change without a major version bump. More public identifiers means more promises to keep, which means more churn, deprecation shims, and "we can't fix this because it'd break user X" conversations later. Keeping the surface small keeps the promises small. If nothing outside the repo uses `internal/scanner.NewScanner`, it has zero users constraining it — the library is free to change its signature, its decoding strategy, its whole existence, without notice.
 
 **What this accomplishes.** Refactoring stays cheap. The `internal/` prefix is a compiler-enforced "do not depend on this" sign for downstream projects. When someone asks "can we rename this?", the answer is "yes if it's in `internal/`, possibly-with-a-deprecation-cycle if it's public." Release notes shrink — only intentional surface additions need mentioning. And the 30-second-onboarding test (see §2) gets easier: a reader skimming the SDK surface sees exactly what users actually call, not every helper the maintainers chose to expose by accident.
