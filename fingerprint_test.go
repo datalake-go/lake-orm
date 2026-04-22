@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -42,22 +41,25 @@ func TestSchemaFingerprint_StableAcrossReorder(t *testing.T) {
 	}
 }
 
-// Variant: same table name (via lakeorm.Table override), same columns
+// Variant: same table name (via TableNamer override), same columns
 // in different order → fingerprint matches.
 type fpUserTableA struct {
 	ID        string    `spark:"id,pk"`
 	Email     string    `spark:"email,mergeKey"`
 	CreatedAt time.Time `spark:"created_at"`
 }
+
+func (fpUserTableA) TableName() string { return "the_users" }
+
 type fpUserTableB struct {
 	CreatedAt time.Time `spark:"created_at"`
 	Email     string    `spark:"email,mergeKey"`
 	ID        string    `spark:"id,pk"`
 }
 
+func (fpUserTableB) TableName() string { return "the_users" }
+
 func TestSchemaFingerprint_SameTableSameColumnsDifferentOrder(t *testing.T) {
-	structs.Table(&fpUserTableA{}, "the_users")
-	structs.Table(&fpUserTableB{}, "the_users")
 	a, err := SchemaFingerprint(&fpUserTableA{})
 	if err != nil {
 		t.Fatalf("A: %v", err)
@@ -71,18 +73,22 @@ func TestSchemaFingerprint_SameTableSameColumnsDifferentOrder(t *testing.T) {
 	}
 }
 
+type fpAdditionBefore struct {
+	ID string `spark:"id,pk"`
+}
+
+func (fpAdditionBefore) TableName() string { return "t1" }
+
+type fpAdditionAfter struct {
+	ID   string `spark:"id,pk"`
+	Name string `spark:"name"`
+}
+
+func (fpAdditionAfter) TableName() string { return "t1" }
+
 func TestSchemaFingerprint_SensitiveToColumnAddition(t *testing.T) {
-	type before struct {
-		ID string `spark:"id,pk"`
-	}
-	type after struct {
-		ID   string `spark:"id,pk"`
-		Name string `spark:"name"`
-	}
-	structs.Table(&before{}, "t1")
-	structs.Table(&after{}, "t1")
-	a, _ := SchemaFingerprint(&before{})
-	b, _ := SchemaFingerprint(&after{})
+	a, _ := SchemaFingerprint(&fpAdditionBefore{})
+	b, _ := SchemaFingerprint(&fpAdditionAfter{})
 	if a == b {
 		t.Errorf("column addition should change fingerprint; both returned %s", a)
 	}

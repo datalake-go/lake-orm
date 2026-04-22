@@ -3,7 +3,6 @@ package structs
 import (
 	"reflect"
 	"strings"
-	"sync"
 	"unicode"
 )
 
@@ -11,36 +10,46 @@ import (
 //
 // By default the table name for a tagged struct is the snake_case
 // pluralisation of the Go type name: User → users, BoundingBox →
-// bounding_boxes, Fish → fishes. That's what you get from
-// ParseSchema on a fresh type.
+// bounding_boxes, Fish → fishes. That covers the common case.
 //
-// Override when the Go name doesn't match the intended schema name:
+// When the Go type name doesn't match the intended schema name —
+// legacy naming, a struct that serves a renamed table, one shape
+// addressing multiple physical tables via composition — implement
+// TableNamer on the struct:
 //
-//	structs.Table(&LegacyInventoryRecord{}, "inventory")
+//	type LegacyInventoryRecord struct {
+//	    ID  string `lake:"id,pk"`
+//	    SKU string `lake:"sku"`
+//	}
 //
-// Call this once at package init before any Insert / Query / Migrate
-// touches the type; the override is process-local, lives in a
-// sync.Map so tests can reassign without racing, and invalidates
-// the ParseSchema cache for that type so the next parse picks up
-// the new name.
+//	func (LegacyInventoryRecord) TableName() string { return "inventory" }
+//
+// ParseSchema consults TableName() before falling back to the
+// default derivation. The interface attaches the override to the
+// struct's declaration site — grep "func.*TableName" finds every
+// override in one pass — and avoids the init-order hazards of a
+// package-level registry.
 
-// tableOverride maps reflect.Type → overridden table name. Consulted
-// by ParseSchema before it falls back to defaultTableName.
-var tableOverride sync.Map // reflect.Type -> string
+// TableNamer lets a user-defined struct declare its table name
+// directly, bypassing the default snake_case-plural derivation.
+type TableNamer interface {
+	TableName() string
+}
 
-// Table overrides the derived table name for a Go type. Call once
-// at package init before any Insert / Query / Migrate touches the
-// type.
-func Table(model any, name string) {
-	t := reflect.TypeOf(model)
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
+// resolveTableName returns the declared table name for a Go type:
+// the TableNamer result if the struct implements it, otherwise the
+// default derivation.
+func resolveTableName(t reflect.Type) string {
+	// Honour TableNamer on both value and pointer receivers. New(t)
+	// gives us a pointer; .Elem() then dereferences for the
+	// value-receiver check.
+	if namer, ok := reflect.New(t).Interface().(TableNamer); ok {
+		return namer.TableName()
 	}
-	tableOverride.Store(t, name)
-	// Invalidate the parse cache so the next ParseSchema call
-	// picks up the override — otherwise a cached pre-override
-	// schema shadows the new name.
-	schemaCache.Delete(t)
+	if namer, ok := reflect.New(t).Elem().Interface().(TableNamer); ok {
+		return namer.TableName()
+	}
+	return defaultTableName(t)
 }
 
 // defaultTableName returns the snake_case plural form of the Go

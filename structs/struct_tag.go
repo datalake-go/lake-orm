@@ -155,10 +155,7 @@ func ParseSchema(t reflect.Type) (*LakeSchema, error) {
 
 	schema := &LakeSchema{
 		GoType:    t,
-		TableName: defaultTableName(t),
-	}
-	if override, ok := tableOverride.Load(t); ok {
-		schema.TableName = override.(string)
+		TableName: resolveTableName(t),
 	}
 
 	if err := walkFields(t, nil, schema); err != nil {
