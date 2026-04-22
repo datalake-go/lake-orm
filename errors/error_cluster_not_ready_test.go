@@ -1,16 +1,16 @@
-package lakeorm
+package errors
 
 import (
 	"errors"
 	"testing"
 )
 
-// TestNewClusterNotReady_ParsesPending pins the contract
-// NewClusterNotReady relies on — the exact string shape Databricks
+// TestNewErrClusterNotReady_ParsesPending pins the contract
+// NewErrClusterNotReady relies on — the exact string shape Databricks
 // returns when a cluster is warming up. If Databricks ever rewords
 // their error, these will fail loudly and tell us to update the
 // detection logic.
-func TestNewClusterNotReady_ParsesPending(t *testing.T) {
+func TestNewErrClusterNotReady_ParsesPending(t *testing.T) {
 	cases := []struct {
 		name, msg, wantState string
 	}{
@@ -28,9 +28,9 @@ func TestNewClusterNotReady_ParsesPending(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			err := errors.New(c.msg)
-			got := NewClusterNotReady(err)
+			got := NewErrClusterNotReady(err)
 			if got == nil {
-				t.Fatalf("NewClusterNotReady returned nil for %q", c.msg)
+				t.Fatalf("NewErrClusterNotReady returned nil for %q", c.msg)
 			}
 			if !got.IsRetryable() {
 				t.Errorf("IsRetryable() = false, want true")
@@ -39,7 +39,7 @@ func TestNewClusterNotReady_ParsesPending(t *testing.T) {
 	}
 }
 
-func TestNewClusterNotReady_IgnoresUnrelated(t *testing.T) {
+func TestNewErrClusterNotReady_IgnoresUnrelated(t *testing.T) {
 	cases := []string{
 		"some random error",
 		"[InvalidArgument] foo bar",
@@ -48,25 +48,25 @@ func TestNewClusterNotReady_IgnoresUnrelated(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c, func(t *testing.T) {
-			if got := NewClusterNotReady(errors.New(c)); got != nil {
-				t.Errorf("NewClusterNotReady(%q) = %+v, want nil", c, got)
+			if got := NewErrClusterNotReady(errors.New(c)); got != nil {
+				t.Errorf("NewErrClusterNotReady(%q) = %+v, want nil", c, got)
 			}
 		})
 	}
 }
 
-func TestNewClusterNotReady_NilInput(t *testing.T) {
-	if got := NewClusterNotReady(nil); got != nil {
-		t.Errorf("NewClusterNotReady(nil) should return nil, got %+v", got)
+func TestNewErrClusterNotReady_NilInput(t *testing.T) {
+	if got := NewErrClusterNotReady(nil); got != nil {
+		t.Errorf("NewErrClusterNotReady(nil) should return nil, got %+v", got)
 	}
 }
 
-func TestIsClusterNotReady(t *testing.T) {
-	err := NewClusterNotReady(errors.New("[FailedPrecondition] state Pending"))
-	if !IsClusterNotReady(err) {
-		t.Error("IsClusterNotReady should recognize the typed error")
+func TestIsErrClusterNotReady(t *testing.T) {
+	err := NewErrClusterNotReady(errors.New("[FailedPrecondition] state Pending"))
+	if !IsErrClusterNotReady(err) {
+		t.Error("IsErrClusterNotReady should recognize the typed error")
 	}
-	if IsClusterNotReady(errors.New("boom")) {
-		t.Error("IsClusterNotReady should reject unrelated errors")
+	if IsErrClusterNotReady(errors.New("boom")) {
+		t.Error("IsErrClusterNotReady should reject unrelated errors")
 	}
 }

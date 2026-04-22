@@ -38,6 +38,7 @@ import (
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // Write-side struct — one per persisted table.
@@ -117,7 +118,7 @@ func main() {
 	firstUS, err := lakeorm.QueryFirst[User](ctx, db,
 		`SELECT * FROM users WHERE country = ? ORDER BY created_at`, "US")
 	switch {
-	case errors.Is(err, lakeorm.ErrNoRows):
+	case errors.Is(err, lkerrors.ErrNoRows):
 		fmt.Println("QueryFirst: no US users")
 	case err != nil:
 		log.Fatalf("QueryFirst: %v", err)

@@ -1,6 +1,6 @@
 // Package gcs provides a GCS Backend. v0 stub — the constructor
 // returns a concrete Backend whose operations all return
-// lakeorm.ErrNotImplemented so the interface is exercisable in examples
+// ErrNotImplemented so the interface is exercisable in examples
 // without requiring the real GCS SDK in v0 test paths.
 //
 // v1+: replace with cloud.google.com/go/storage direct, following the

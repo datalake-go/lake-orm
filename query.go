@@ -60,7 +60,7 @@ func QueryStream[T any](ctx context.Context, db Client, sql string, args ...any)
 }
 
 // QueryFirst runs a SQL statement and returns the first matching
-// row decoded as T. Returns ErrNoRows if the result is empty.
+// row decoded as T. Returns lkerrors.ErrNoRows if the result is empty.
 // Ergonomic wrapper over db.DataFrame + FirstAs[T].
 func QueryFirst[T any](ctx context.Context, db Client, sql string, args ...any) (*T, error) {
 	df, err := db.DataFrame(ctx, sql, args...)

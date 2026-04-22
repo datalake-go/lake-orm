@@ -8,6 +8,7 @@ import (
 	sparksql "github.com/datalake-go/spark-connect-go/spark/sql"
 
 	"github.com/datalake-go/lake-orm/internal/scanner"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // CollectAs materialises every row of df into []T. Uses the Spark-
@@ -27,7 +28,7 @@ import (
 // result columns to fields.
 func CollectAs[T any](ctx context.Context, df DataFrame) ([]T, error) {
 	if df == nil {
-		return nil, fmt.Errorf("lakeorm: %w (DataFrame is nil)", ErrDriverMismatch)
+		return nil, fmt.Errorf("lakeorm: %w (DataFrame is nil)", lkerrors.ErrDriverMismatch)
 	}
 	if sparkDF, ok := sparkDataFrame(df); ok {
 		return sparksql.Collect[T](ctx, sparkDF)
@@ -48,7 +49,7 @@ func StreamAs[T any](ctx context.Context, df DataFrame) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		var zero T
 		if df == nil {
-			yield(zero, fmt.Errorf("lakeorm: %w (DataFrame is nil)", ErrDriverMismatch))
+			yield(zero, fmt.Errorf("lakeorm: %w (DataFrame is nil)", lkerrors.ErrDriverMismatch))
 			return
 		}
 		if sparkDF, ok := sparkDataFrame(df); ok {
@@ -63,17 +64,17 @@ func StreamAs[T any](ctx context.Context, df DataFrame) iter.Seq2[T, error] {
 	}
 }
 
-// FirstAs returns the first row of df decoded as T, or ErrNoRows
+// FirstAs returns the first row of df decoded as T, or lkerrors.ErrNoRows
 // if the DataFrame produced no rows.
 func FirstAs[T any](ctx context.Context, df DataFrame) (*T, error) {
 	if df == nil {
-		return nil, fmt.Errorf("lakeorm: %w (DataFrame is nil)", ErrDriverMismatch)
+		return nil, fmt.Errorf("lakeorm: %w (DataFrame is nil)", lkerrors.ErrDriverMismatch)
 	}
 	if sparkDF, ok := sparkDataFrame(df); ok {
 		row, err := sparksql.First[T](ctx, sparkDF)
 		if err != nil {
 			if err == sparksql.ErrNotFound {
-				return nil, ErrNoRows
+				return nil, lkerrors.ErrNoRows
 			}
 			return nil, err
 		}
@@ -139,7 +140,7 @@ func streamViaStream[T any](ctx context.Context, df DataFrame, yield func(T, err
 	}
 }
 
-// firstViaStream is the driver-agnostic FirstAs. Returns ErrNoRows
+// firstViaStream is the driver-agnostic FirstAs. Returns lkerrors.ErrNoRows
 // when the stream is empty. Terminates the iteration after the
 // first successful row.
 func firstViaStream[T any](ctx context.Context, df DataFrame) (*T, error) {
@@ -154,5 +155,5 @@ func firstViaStream[T any](ctx context.Context, df DataFrame) (*T, error) {
 		}
 		return &dest, nil
 	}
-	return nil, ErrNoRows
+	return nil, lkerrors.ErrNoRows
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/dialects/duckdb"
 	"github.com/datalake-go/lake-orm/types"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // bookUpsert declares title as a mergeKey — the duckdb dialect
@@ -32,7 +33,7 @@ func TestPlanInsert_RejectsMergeKey(t *testing.T) {
 	if err == nil {
 		t.Fatal("PlanInsert with mergeKey should error; duckdb has no upsert in v0")
 	}
-	if !errors.Is(err, lakeorm.ErrNotImplemented) {
+	if !errors.Is(err, lkerrors.ErrNotImplemented) {
 		t.Errorf("err = %v, want wraps ErrNotImplemented", err)
 	}
 }

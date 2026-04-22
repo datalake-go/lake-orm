@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // CleanupReport summarises CleanupStaging's pass. Deleted carries
@@ -36,7 +37,7 @@ func NewStagingPrefix(uri, ingestID string) StagingPrefix {
 // StagingLister is the optional backend extension Client.CleanupStaging
 // relies on. Backends that can enumerate their _staging/ namespace
 // implement this; backends that can't leave it unimplemented and
-// CleanupStaging returns ErrNotImplemented.
+// CleanupStaging returns lkerrors.ErrNotImplemented.
 //
 // Kept as a separate interface (not folded into Backend) so the
 // Backend contract stays narrow: the fast-path write path only needs
@@ -59,13 +60,13 @@ type StagingLister interface {
 // the _staging/ namespace may legitimately contain other operator-
 // managed content.
 //
-// Returns ErrNotImplemented wrapped if the configured Backend does
+// Returns lkerrors.ErrNotImplemented wrapped if the configured Backend does
 // not satisfy the StagingLister optional interface.
 func (c *client) CleanupStaging(ctx context.Context, olderThan time.Duration) (*CleanupReport, error) {
 	lister, ok := c.backend.(StagingLister)
 	if !ok {
 		return nil, fmt.Errorf("lakeorm.CleanupStaging: backend does not implement StagingLister: %w",
-			ErrNotImplemented)
+			lkerrors.ErrNotImplemented)
 	}
 	prefixes, err := lister.ListStagingPrefixes(ctx)
 	if err != nil {

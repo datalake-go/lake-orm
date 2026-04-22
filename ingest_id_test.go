@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // --- _ingest_id is a system column; user-declared use rejected -----
@@ -137,8 +138,8 @@ func TestCleanupStaging_BackendWithoutStagingListerReturnsNotImplemented(t *test
 	type plainBackend struct{ Backend }
 	c := &client{backend: &plainBackend{}}
 	_, err := c.CleanupStaging(context.Background(), 24*time.Hour)
-	if !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("err = %v, want ErrNotImplemented", err)
+	if !errors.Is(err, lkerrors.ErrNotImplemented) {
+		t.Errorf("err = %v, want lkerrors.ErrNotImplemented", err)
 	}
 }
 

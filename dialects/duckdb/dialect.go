@@ -34,6 +34,7 @@ import (
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // DialectOption tunes the DuckDB Dialect. Reserved for future knobs
@@ -172,7 +173,7 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 		return lakeorm.ExecutionPlan{}, fmt.Errorf(
 			"duckdb: upsert (via mergeKey) is not yet implemented for the embedded dialect; "+
 				"use iceberg / delta + driver/spark for upsert, or drop the mergeKey tag: %w",
-			lakeorm.ErrNotImplemented)
+			lkerrors.ErrNotImplemented)
 	}
 	return lakeorm.ExecutionPlan{
 		Kind:     lakeorm.KindDirectIngest,

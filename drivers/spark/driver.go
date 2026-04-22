@@ -15,6 +15,7 @@ import (
 
 	"github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/types"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // driver is the shared Spark Connect driver backing both Remote and
@@ -316,7 +317,7 @@ func (f *parquetIngestFinalizer) runSQL(ctx context.Context, sql string) error {
 
 func (f *parquetIngestFinalizer) Commit(ctx context.Context) error {
 	if f.committed {
-		return lakeorm.ErrAlreadyCommitted
+		return lkerrors.ErrAlreadyCommitted
 	}
 	defer f.driver.pool.Return(f.session)
 

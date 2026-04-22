@@ -1,4 +1,4 @@
-package lakeorm
+package errors
 
 import (
 	"errors"
@@ -6,21 +6,12 @@ import (
 	"strings"
 )
 
-// Sentinel errors used across the package.
-var (
-	ErrNotImplemented   = errors.New("lakeorm: not implemented")
-	ErrAlreadyCommitted = errors.New("lakeorm: finalizer already committed")
-	ErrNoRows           = errors.New("lakeorm: no rows")
-	ErrUnknownDriver    = errors.New("lakeorm: unknown driver")
-	ErrDriverMismatch   = errors.New("lakeorm: driver mismatch")
-)
-
-// ErrClusterNotReady indicates the backing Spark cluster is warming
-// up and the operation should be retried. Databricks in particular
-// returns [FailedPrecondition] errors with state Pending during
-// cluster startup — without this typed error, callers get an opaque
-// gRPC failure and no way to distinguish "cluster warming up, retry"
-// from "cluster dead, give up."
+// ErrClusterNotReady indicates the backing Spark cluster is
+// warming up and the operation should be retried. Databricks in
+// particular returns [FailedPrecondition] errors with state
+// Pending during cluster startup — without this typed error,
+// callers get an opaque gRPC failure and no way to distinguish
+// "cluster warming up, retry" from "cluster dead, give up."
 type ErrClusterNotReady struct {
 	State     string // e.g. "Pending", "PENDING"
 	RequestID string
@@ -28,27 +19,34 @@ type ErrClusterNotReady struct {
 	Cause     error
 }
 
+// Error implements error.
 func (e *ErrClusterNotReady) Error() string {
 	return fmt.Sprintf("cluster not ready (state=%s): %s", e.State, e.Message)
 }
 
+// Unwrap returns the underlying cause so errors.Is / errors.As
+// reach it.
 func (e *ErrClusterNotReady) Unwrap() error { return e.Cause }
 
 // IsRetryable marks this error as safe to retry after backoff.
+// Retry loops higher up the stack check this before deciding
+// whether to resend.
 func (e *ErrClusterNotReady) IsRetryable() bool { return true }
 
-// IsClusterNotReady is a convenience for errors.As callers.
-func IsClusterNotReady(err error) bool {
+// IsErrClusterNotReady reports whether err (or anything it
+// wraps) is an ErrClusterNotReady. errors.As convenience.
+func IsErrClusterNotReady(err error) bool {
 	var e *ErrClusterNotReady
 	return errors.As(err, &e)
 }
 
-// NewClusterNotReady parses a Databricks gRPC error for the
-// [FailedPrecondition] + "state Pending" pattern and returns a typed
-// error. Returns nil if the error doesn't match. The string-matching
-// looks fragile, but it's the canonical detection pattern and has
-// been stable across multiple Databricks runtime versions.
-func NewClusterNotReady(err error) *ErrClusterNotReady {
+// NewErrClusterNotReady classifies a Databricks gRPC error as a
+// cluster-warming-up case. Returns nil if the supplied error
+// doesn't match the [FailedPrecondition] + "state Pending"
+// pattern Databricks emits during cluster startup. The string-
+// matching looks fragile but has been stable across multiple
+// Databricks runtime versions and is the canonical detection.
+func NewErrClusterNotReady(err error) *ErrClusterNotReady {
 	if err == nil {
 		return nil
 	}
