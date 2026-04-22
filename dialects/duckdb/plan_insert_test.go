@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/dialects/duckdb"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -23,7 +24,7 @@ type bookUpsert struct {
 // users don't get silent append when they expected upsert.
 func TestPlanInsert_RejectsMergeKey(t *testing.T) {
 	d := duckdb.Dialect()
-	schema, err := lakeorm.ParseSchema(reflect.TypeOf(bookUpsert{}))
+	schema, err := structs.ParseSchema(reflect.TypeOf(bookUpsert{}))
 	if err != nil {
 		t.Fatalf("ParseSchema: %v", err)
 	}

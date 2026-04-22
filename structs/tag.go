@@ -1,4 +1,4 @@
-package lakeorm
+package structs
 
 import (
 	"fmt"
@@ -20,13 +20,6 @@ const (
 	AutoCreateTime
 	AutoUpdateTime
 )
-
-// SystemIngestIDColumn re-exports types.SystemIngestIDColumn so
-// callers using the top-level package get a stable name. The
-// authoritative definition lives in the types package because
-// dialects and drivers (which cannot import lakeorm without a
-// cycle) reference it at DDL / write time.
-const SystemIngestIDColumn = types.SystemIngestIDColumn
 
 // PartitionStrategy is the tag-declared partition intent. Dialect
 // implementations translate this into a physical strategy (Iceberg
@@ -260,11 +253,11 @@ func parseField(sf reflect.StructField, idx []int, tag string) (LakeField, bool,
 	// creates carries it synthetically, stamped with a UUIDv7 per
 	// Insert. Users declaring it would collide with the synthesised
 	// column; refuse the declaration up front.
-	if field.Column == SystemIngestIDColumn {
+	if field.Column == types.SystemIngestIDColumn {
 		return field, false, fmt.Errorf(
 			"%w: field %s: %q is a system-managed column — remove it from your struct "+
 				"(lake-orm generates one per Insert automatically; see INGEST_ID.md)",
-			ErrInvalidTag, sf.Name, SystemIngestIDColumn)
+			ErrInvalidTag, sf.Name, types.SystemIngestIDColumn)
 	}
 
 	for _, mod := range parts[1:] {
@@ -306,14 +299,14 @@ func parseField(sf reflect.StructField, idx []int, tag string) (LakeField, bool,
 			case "ingestID":
 				// auto=ingestID was an earlier modifier that stamped
 				// UUIDv7s onto a user-declared string field. The
-				// column is now system-managed (SystemIngestIDColumn
+				// column is now system-managed (types.SystemIngestIDColumn
 				// is synthesised per-table, stamped at the driver
 				// layer) and the tag is no longer valid. Remove the
 				// field from the struct.
 				return field, false, fmt.Errorf(
 					"%w: auto=ingestID on %s is no longer supported — %q is a system-managed column, "+
 						"remove the field from your struct (lake-orm adds it automatically; see INGEST_ID.md)",
-					ErrInvalidTag, sf.Name, SystemIngestIDColumn)
+					ErrInvalidTag, sf.Name, types.SystemIngestIDColumn)
 			default:
 				return field, false, fmt.Errorf("%w: auto=%q on %s", ErrInvalidTag, val, sf.Name)
 			}

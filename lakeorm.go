@@ -7,7 +7,7 @@
 //
 //	lakeorm.Open(driver, dialect, backend, opts...)
 //	lakeorm.Query[T](ctx, db, sql, args...)   // typed read
-//	lakeorm.Validate(records)                 // boundary-validate before I/O
+//	structs.Validate(records)                 // boundary-validate before I/O
 //
 // Composition is always three pieces: a Driver (transport — how we
 // connect and execute), a Dialect (the data-dialect — DDL, DML,

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
@@ -35,7 +36,7 @@ func (fakeBackend) StagingLocation(string) types.Location { return types.Locatio
 // append path — pure-insert structs stay on the append SQL.
 func TestPlanInsert_NoMergeKeyRoutesToKindParquetIngest(t *testing.T) {
 	d := iceberg.Dialect()
-	schema, err := lakeorm.ParseSchema(reflect.TypeOf(bookAppend{}))
+	schema, err := structs.ParseSchema(reflect.TypeOf(bookAppend{}))
 	if err != nil {
 		t.Fatalf("ParseSchema: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestPlanInsert_NoMergeKeyRoutesToKindParquetIngest(t *testing.T) {
 // upsert path — structs declaring a mergeKey flow into MERGE INTO.
 func TestPlanInsert_WithMergeKeyRoutesToKindParquetMerge(t *testing.T) {
 	d := iceberg.Dialect()
-	schema, err := lakeorm.ParseSchema(reflect.TypeOf(bookUpsert{}))
+	schema, err := structs.ParseSchema(reflect.TypeOf(bookUpsert{}))
 	if err != nil {
 		t.Fatalf("ParseSchema: %v", err)
 	}
@@ -96,7 +97,7 @@ func TestPlanInsert_WithMergeKeyRoutesToKindParquetMerge(t *testing.T) {
 // non-surprise.
 func TestPlanInsert_MergeKeyOnDirectIngestPathStaysDirect(t *testing.T) {
 	d := iceberg.Dialect()
-	schema, _ := lakeorm.ParseSchema(reflect.TypeOf(bookUpsert{}))
+	schema, _ := structs.ParseSchema(reflect.TypeOf(bookUpsert{}))
 	f := testutils.NewFactory(t)
 	plan, err := d.PlanInsert(lakeorm.WriteRequest{
 		Schema:         schema,

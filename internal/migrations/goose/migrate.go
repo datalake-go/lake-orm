@@ -56,7 +56,7 @@ const (
 )
 
 // Schema is the migrate-local view of a table's persisted shape,
-// independent of the richer lakeorm.LakeSchema. Contains only what Diff
+// independent of the richer structs.LakeSchema. Contains only what Diff
 // and Generate actually need.
 type Schema struct {
 	TableName string

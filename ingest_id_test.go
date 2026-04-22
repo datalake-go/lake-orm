@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"errors"
 	"reflect"
@@ -19,12 +20,12 @@ type userDeclaredIngestID struct {
 }
 
 func TestParseSchema_RejectsUserDeclaredIngestIDColumn(t *testing.T) {
-	_, err := ParseSchema(reflect.TypeOf(userDeclaredIngestID{}))
+	_, err := structs.ParseSchema(reflect.TypeOf(userDeclaredIngestID{}))
 	if err == nil {
-		t.Fatal("ParseSchema should reject a user field mapped to _ingest_id")
+		t.Fatal("structs.ParseSchema should reject a user field mapped to _ingest_id")
 	}
-	if !errors.Is(err, ErrInvalidTag) {
-		t.Errorf("err = %v, want wraps ErrInvalidTag", err)
+	if !errors.Is(err, structs.ErrInvalidTag) {
+		t.Errorf("err = %v, want wraps structs.ErrInvalidTag", err)
 	}
 	if !strings.Contains(err.Error(), "system-managed") {
 		t.Errorf("error should explain the system-managed column rule, got: %v", err)
@@ -39,12 +40,12 @@ type legacyAutoIngestID struct {
 }
 
 func TestParseSchema_RejectsLegacyAutoIngestIDModifier(t *testing.T) {
-	_, err := ParseSchema(reflect.TypeOf(legacyAutoIngestID{}))
+	_, err := structs.ParseSchema(reflect.TypeOf(legacyAutoIngestID{}))
 	if err == nil {
-		t.Fatal("ParseSchema should reject auto=ingestID modifier")
+		t.Fatal("structs.ParseSchema should reject auto=ingestID modifier")
 	}
-	if !errors.Is(err, ErrInvalidTag) {
-		t.Errorf("err = %v, want wraps ErrInvalidTag", err)
+	if !errors.Is(err, structs.ErrInvalidTag) {
+		t.Errorf("err = %v, want wraps structs.ErrInvalidTag", err)
 	}
 	if !strings.Contains(err.Error(), "no longer supported") {
 		t.Errorf("error should carry the migration message, got: %v", err)

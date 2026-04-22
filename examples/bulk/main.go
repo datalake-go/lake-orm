@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
@@ -92,7 +93,7 @@ func main() {
 			CreatedAt: now,
 		}
 	}
-	if err := lakeorm.Validate(rows); err != nil {
+	if err := structs.Validate(rows); err != nil {
 		log.Fatalf("validate: %v", err)
 	}
 

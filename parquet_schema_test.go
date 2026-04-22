@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"reflect"
 	"strings"
 	"testing"
@@ -26,9 +27,9 @@ type pqTestUser struct {
 // lake→parquet translation is dropping or adding a column that user
 // code doesn't expect.
 func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
-	lake, err := ParseSchema(reflect.TypeOf(pqTestUser{}))
+	lake, err := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 	if err != nil {
-		t.Fatalf("ParseSchema: %v", err)
+		t.Fatalf("structs.ParseSchema: %v", err)
 	}
 	ps, err := BuildParquetSchema(lake)
 	if err != nil {
@@ -39,7 +40,7 @@ func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
 	// appended after user fields. Order matters — the SELECT * at
 	// Spark's INSERT step assumes the staging column order matches
 	// the target-table DDL order.
-	want := []string{"id", "email", "country", "created_at", "deleted_at", SystemIngestIDColumn}
+	want := []string{"id", "email", "country", "created_at", "deleted_at", types.SystemIngestIDColumn}
 	got := columnNamesOf(ps)
 	if len(got) != len(want) {
 		t.Fatalf("got %d columns (%v), want %d (%v)", len(got), got, len(want), want)
@@ -62,7 +63,7 @@ func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
 // `parquet:"...,timestamp(microsecond)"` by hand — if the tag ever
 // stops being emitted, Spark starts rejecting reads again.
 func TestBuildParquetSchema_TimestampTag(t *testing.T) {
-	lake, _ := ParseSchema(reflect.TypeOf(pqTestUser{}))
+	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 
 	for _, f := range lake.Fields {
 		if f.Ignored {
@@ -85,8 +86,8 @@ func TestBuildParquetSchema_TimestampTag(t *testing.T) {
 // translation. parquet-go's default is `required`, which blows up
 // NULL writes.
 func TestBuildParquetSchema_OptionalForNullable(t *testing.T) {
-	lake, _ := ParseSchema(reflect.TypeOf(pqTestUser{}))
-	byName := map[string]LakeField{}
+	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
+	byName := map[string]structs.LakeField{}
 	for _, f := range lake.Fields {
 		byName[f.Name] = f
 	}
@@ -108,7 +109,7 @@ func TestBuildParquetSchema_OptionalForNullable(t *testing.T) {
 // synthesized type's field names — and stamps the per-operation
 // ingest_id onto the trailing XIngestID field.
 func TestBuildParquetSchema_ConverterFor_Projects(t *testing.T) {
-	lake, _ := ParseSchema(reflect.TypeOf(pqTestUser{}))
+	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 	ps, _ := BuildParquetSchema(lake)
 
 	when := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)

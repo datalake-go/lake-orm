@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -19,27 +20,27 @@ type DialectOption func(*config)
 
 type config struct {
 	deletionVectors bool
-	indexStrategy   map[string]lakeorm.IndexStrategy
+	indexStrategy   map[string]structs.IndexStrategy
 }
 
 // ZOrder marks a column as contributing to Delta ZORDER on OPTIMIZE.
-var ZOrder lakeorm.IndexStrategy = "zorder"
+var ZOrder structs.IndexStrategy = "zorder"
 
 func WithDeletionVectors(b bool) DialectOption {
 	return func(c *config) { c.deletionVectors = b }
 }
 
-func WithIndexStrategy(col string, s lakeorm.IndexStrategy) DialectOption {
+func WithIndexStrategy(col string, s structs.IndexStrategy) DialectOption {
 	return func(c *config) {
 		if c.indexStrategy == nil {
-			c.indexStrategy = map[string]lakeorm.IndexStrategy{}
+			c.indexStrategy = map[string]structs.IndexStrategy{}
 		}
 		c.indexStrategy[col] = s
 	}
 }
 
 func Dialect(opts ...DialectOption) lakeorm.Dialect {
-	cfg := &config{indexStrategy: map[string]lakeorm.IndexStrategy{}}
+	cfg := &config{indexStrategy: map[string]structs.IndexStrategy{}}
 	for _, o := range opts {
 		o(cfg)
 	}
@@ -50,18 +51,18 @@ type dialect struct{ cfg *config }
 
 func (d *dialect) Name() string { return "delta" }
 
-func (d *dialect) IndexStrategy(intent lakeorm.IndexIntent) lakeorm.IndexStrategy {
+func (d *dialect) IndexStrategy(intent structs.IndexIntent) structs.IndexStrategy {
 	switch intent {
-	case lakeorm.IntentIndexed, lakeorm.IntentMergeKey:
+	case structs.IntentIndexed, structs.IntentMergeKey:
 		return ZOrder
 	default:
 		return ""
 	}
 }
 
-func (d *dialect) LayoutStrategy(lakeorm.LayoutIntent) lakeorm.LayoutStrategy { return "" }
+func (d *dialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy { return "" }
 
-func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, loc types.Location) (string, error) {
+func (d *dialect) CreateTableDDL(schema *structs.LakeSchema, loc types.Location) (string, error) {
 	if schema == nil {
 		return "", fmt.Errorf("delta: nil schema")
 	}

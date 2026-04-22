@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
@@ -69,7 +70,7 @@ func main() {
 		{ID: types.NewSortableID(), Email: "bob@example.com", Country: "UK", CreatedAt: now},
 		{ID: types.NewSortableID(), Email: "carol@example.com", Country: "US", CreatedAt: now},
 	}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		log.Fatalf("validate: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaObjectStorage()); err != nil {

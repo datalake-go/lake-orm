@@ -51,7 +51,7 @@ func TestE2E_Migrate_InsertSmall_Stream(t *testing.T) {
 		{ID: types.NewSortableID(), Email: "alice@example.com", Country: "UK", CreatedAt: f.Now()},
 		{ID: types.NewSortableID(), Email: "bob@example.com", Country: "US", CreatedAt: f.Now()},
 	}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaGRPC()); err != nil {

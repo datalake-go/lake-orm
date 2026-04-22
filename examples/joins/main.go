@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
@@ -91,7 +92,7 @@ func main() {
 	alice := &User{ID: types.NewSortableID(), Email: "alice@example.com", Country: "UK"}
 	bob := &User{ID: types.NewSortableID(), Email: "bob@example.com", Country: "US"}
 	users := []*User{alice, bob}
-	if err := lakeorm.Validate(users); err != nil {
+	if err := structs.Validate(users); err != nil {
 		log.Fatalf("validate users: %v", err)
 	}
 	if err := db.Insert(ctx, users, lakeorm.ViaObjectStorage()); err != nil {
@@ -103,7 +104,7 @@ func main() {
 		{ID: types.NewSortableID(), UserID: string(alice.ID), AmountPence: 1750, PlacedAt: time.Now().Truncate(time.Microsecond)},
 		{ID: types.NewSortableID(), UserID: string(bob.ID), AmountPence: 9999, PlacedAt: time.Now().Truncate(time.Microsecond)},
 	}
-	if err := lakeorm.Validate(orders); err != nil {
+	if err := structs.Validate(orders); err != nil {
 		log.Fatalf("validate orders: %v", err)
 	}
 	if err := db.Insert(ctx, orders, lakeorm.ViaObjectStorage()); err != nil {

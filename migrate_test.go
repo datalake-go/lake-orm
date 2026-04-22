@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ type genUser struct {
 }
 
 // TestMigrateGenerate_WritesGooseFile covers the main flow:
-// LakeSchema → migrate.Schema → Diff (treated as bootstrap in v0
+// structs.LakeSchema → migrate.Schema → Diff (treated as bootstrap in v0
 // because the current-state read is still stubbed) → goose-format
 // file on disk. We verify the file exists, has the expected goose
 // annotations, and passes through the `-- dam:ack` rule for the
@@ -75,10 +76,10 @@ func TestMigrateGenerate_BootstrapTableCreatesEmptyFile(t *testing.T) {
 // Iceberg/Delta instance.
 type stubDialect struct{ name string }
 
-func (s stubDialect) Name() string                               { return s.name }
-func (s stubDialect) IndexStrategy(IndexIntent) IndexStrategy    { return "" }
-func (s stubDialect) LayoutStrategy(LayoutIntent) LayoutStrategy { return "" }
-func (s stubDialect) CreateTableDDL(*LakeSchema, types.Location) (string, error) {
+func (s stubDialect) Name() string                                                   { return s.name }
+func (s stubDialect) IndexStrategy(structs.IndexIntent) structs.IndexStrategy        { return "" }
+func (s stubDialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy     { return "" }
+func (s stubDialect) CreateTableDDL(*structs.LakeSchema, types.Location) (string, error) {
 	return "", nil
 }
 func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)  { return ExecutionPlan{}, nil }

@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 )
 
 // SchemaFingerprint returns a stable SHA-256 over the expected
-// LakeSchema for v (or reflect.Type(v) if v is a reflect.Type).
+// structs.LakeSchema for v (or reflect.Type(v) if v is a reflect.Type).
 // The fingerprint is:
 //
 //   - deterministic across process invocations
@@ -34,14 +35,14 @@ func SchemaFingerprint(v any) (string, error) {
 	default:
 		t = reflect.TypeOf(v)
 	}
-	schema, err := ParseSchema(t)
+	schema, err := structs.ParseSchema(t)
 	if err != nil {
 		return "", err
 	}
 	return fingerprintSchema(schema), nil
 }
 
-func fingerprintSchema(s *LakeSchema) string {
+func fingerprintSchema(s *structs.LakeSchema) string {
 	// Canonical form: table name + sorted (column, type, nullable,
 	// pk, mergeKey) tuples joined by \n. Field index is NOT hashed
 	// — a reordering of struct fields should not force a new

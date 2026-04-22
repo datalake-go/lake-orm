@@ -11,7 +11,6 @@ var (
 	ErrNotImplemented   = errors.New("lakeorm: not implemented")
 	ErrAlreadyCommitted = errors.New("lakeorm: finalizer already committed")
 	ErrNoRows           = errors.New("lakeorm: no rows")
-	ErrInvalidTag       = errors.New("lakeorm: invalid struct tag")
 	ErrUnknownDriver    = errors.New("lakeorm: unknown driver")
 	ErrDriverMismatch   = errors.New("lakeorm: driver mismatch")
 )

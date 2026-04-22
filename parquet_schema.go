@@ -7,13 +7,16 @@ import (
 	"time"
 
 	pq "github.com/parquet-go/parquet-go"
+
+	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // timeType is reflect.TypeOf(time.Time{}) cached so the schema
 // synthesis doesn't call reflect.TypeOf per field.
 var timeType = reflect.TypeOf(time.Time{})
 
-// ParquetSchema is the bridge between a LakeSchema (the user's
+// ParquetSchema is the bridge between a structs.LakeSchema (the user's
 // lake-tagged model) and a parquet schema (what the fast-path writer
 // serializes against). The whole point: users tag their structs with
 // `spark:"..."` once; they do NOT need to also write `parquet:"..."`
@@ -29,7 +32,7 @@ var timeType = reflect.TypeOf(time.Time{})
 // which also includes that system-managed column. Convert stamps
 // the per-operation ingest_id onto every row.
 type ParquetSchema struct {
-	lake           *LakeSchema
+	lake           *structs.LakeSchema
 	schema         *pq.Schema
 	synthesized    reflect.Type
 	projection     []parquetFieldProjection
@@ -41,16 +44,16 @@ type parquetFieldProjection struct {
 	targetIndex int   // flat field index in the synthesized struct
 }
 
-// BuildParquetSchema translates a LakeSchema into a parquet schema +
+// BuildParquetSchema translates a structs.LakeSchema into a parquet schema +
 // row projector. The returned ParquetSchema is cheap to call; the
 // reflection work happens once and is reused per Write call.
 //
 // The fast-path writer (internal/parquet) wires this up automatically
 // when Insert routes through object storage — users don't construct
 // ParquetSchema directly.
-func BuildParquetSchema(lake *LakeSchema) (*ParquetSchema, error) {
+func BuildParquetSchema(lake *structs.LakeSchema) (*ParquetSchema, error) {
 	if lake == nil {
-		return nil, fmt.Errorf("lakeorm: BuildParquetSchema requires a non-nil LakeSchema")
+		return nil, fmt.Errorf("lakeorm: BuildParquetSchema requires a non-nil structs.LakeSchema")
 	}
 
 	fields := make([]reflect.StructField, 0, len(lake.Fields)+1)
@@ -73,7 +76,7 @@ func BuildParquetSchema(lake *LakeSchema) (*ParquetSchema, error) {
 	}
 
 	// System-managed _ingest_id column (see tag.go's
-	// SystemIngestIDColumn). Appended last so the parquet output's
+	// types.SystemIngestIDColumn). Appended last so the parquet output's
 	// column order mirrors the target table DDL, which also emits
 	// it last. Marked optional so NULL rows in existing tables
 	// stay valid, but Convert always stamps the operation's UUIDv7
@@ -83,7 +86,7 @@ func BuildParquetSchema(lake *LakeSchema) (*ParquetSchema, error) {
 	fields = append(fields, reflect.StructField{
 		Name: "XIngestID", // synthetic — unexported-looking but exported for reflect
 		Type: reflect.TypeOf(""),
-		Tag:  reflect.StructTag(fmt.Sprintf(`parquet:"%s,optional"`, SystemIngestIDColumn)),
+		Tag:  reflect.StructTag(fmt.Sprintf(`parquet:"%s,optional"`, types.SystemIngestIDColumn)),
 	})
 
 	synth := reflect.StructOf(fields)
@@ -129,7 +132,7 @@ func (p *ParquetSchema) ConverterFor(ingestID string) func(any) any {
 }
 
 // buildParquetTag renders the parquet-go struct-tag string for a
-// LakeField. Translation rules (extend here when v1 adds a new
+// structs.LakeField. Translation rules (extend here when v1 adds a new
 // lake tag modifier or column kind):
 //
 //   - Column name comes from the lake tag (or snake_case field name).
@@ -139,7 +142,7 @@ func (p *ParquetSchema) ConverterFor(ingestID string) func(any) any {
 //   - Pointer or `nullable` → `optional`. parquet-go's default is
 //     `required` for non-pointer fields; explicit `optional` lets
 //     rows carry NULLs without allocating pointer wrappers.
-func buildParquetTag(f LakeField) string {
+func buildParquetTag(f structs.LakeField) string {
 	parts := []string{f.Column}
 
 	t := f.Type
@@ -159,7 +162,7 @@ func buildParquetTag(f LakeField) string {
 }
 
 // parquetFieldAt navigates an index path, dereferencing pointers on
-// the way down. LakeField.Index handles embedded fields; this helper
+// the way down. structs.LakeField.Index handles embedded fields; this helper
 // walks that path without allocating.
 func parquetFieldAt(v reflect.Value, index []int) reflect.Value {
 	cur := v

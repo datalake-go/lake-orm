@@ -1,4 +1,4 @@
-package lakeorm
+package structs
 
 import (
 	"bytes"

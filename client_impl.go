@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
+
+	"github.com/datalake-go/lake-orm/structs"
 )
 
 // client is the default Client implementation. Holds the three
@@ -49,7 +51,7 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	}
 	ingestID := ingestUUID.String()
 
-	if err := Validate(records); err != nil {
+	if err := structs.Validate(records); err != nil {
 		return err
 	}
 
@@ -127,7 +129,7 @@ func (c *client) Migrate(ctx context.Context, models ...any) error {
 	}
 
 	for _, m := range models {
-		schema, err := ParseSchema(reflectTypeOf(m))
+		schema, err := structs.ParseSchema(reflectTypeOf(m))
 		if err != nil {
 			return err
 		}

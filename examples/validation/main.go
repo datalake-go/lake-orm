@@ -9,14 +9,14 @@
 // lake-orm delegates validation to [go-playground/validator/v10] —
 // the de facto Go library. Rules live on the standard
 // `validate:"..."` struct tag; lake-orm calls `validator.Struct()`
-// internally when `lakeorm.Validate(records)` runs at the
+// internally when `structs.Validate(records)` runs at the
 // application boundary.
 //
 // This example shows:
 //
 //   - Built-in rules (required, email, oneof).
 //   - A custom rule registered once at init via
-//     `lakeorm.Validator().RegisterValidation(name, fn)`.
+//     `structs.Validator().RegisterValidation(name, fn)`.
 //   - Unwrapping `error` → `validator.ValidationErrors` for
 //     per-field inspection in an HTTP-handler-shaped response.
 //
@@ -36,6 +36,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
@@ -56,7 +57,7 @@ type User struct {
 var ukPostcodeRE = regexp.MustCompile(`(?i)^[A-Z]{1,2}[0-9R][0-9A-Z]? ?[0-9][A-Z]{2}$`)
 
 func init() {
-	err := lakeorm.Validator().RegisterValidation("uk_postcode", func(fl validator.FieldLevel) bool {
+	err := structs.Validator().RegisterValidation("uk_postcode", func(fl validator.FieldLevel) bool {
 		return ukPostcodeRE.MatchString(strings.TrimSpace(fl.Field().String()))
 	})
 	if err != nil {
@@ -96,7 +97,7 @@ func main() {
 		Postcode: "SW1A 1AA",
 		JoinedAt: time.Now().Truncate(time.Microsecond),
 	}
-	if err := lakeorm.Validate(good); err != nil {
+	if err := structs.Validate(good); err != nil {
 		log.Fatalf("unexpected validation failure: %v", err)
 	}
 	fmt.Println("validated: alice")
@@ -111,7 +112,7 @@ func main() {
 		Postcode: "ZZZ", // not a valid postcode
 		JoinedAt: time.Now().Truncate(time.Microsecond),
 	}
-	err = lakeorm.Validate(bad)
+	err = structs.Validate(bad)
 	var vErrs validator.ValidationErrors
 	if errors.As(err, &vErrs) {
 		for _, fe := range vErrs {

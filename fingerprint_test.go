@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -55,8 +56,8 @@ type fpUserTableB struct {
 }
 
 func TestSchemaFingerprint_SameTableSameColumnsDifferentOrder(t *testing.T) {
-	Table(&fpUserTableA{}, "the_users")
-	Table(&fpUserTableB{}, "the_users")
+	structs.Table(&fpUserTableA{}, "the_users")
+	structs.Table(&fpUserTableB{}, "the_users")
 	a, err := SchemaFingerprint(&fpUserTableA{})
 	if err != nil {
 		t.Fatalf("A: %v", err)
@@ -78,8 +79,8 @@ func TestSchemaFingerprint_SensitiveToColumnAddition(t *testing.T) {
 		ID   string `spark:"id,pk"`
 		Name string `spark:"name"`
 	}
-	Table(&before{}, "t1")
-	Table(&after{}, "t1")
+	structs.Table(&before{}, "t1")
+	structs.Table(&after{}, "t1")
 	a, _ := SchemaFingerprint(&before{})
 	b, _ := SchemaFingerprint(&after{})
 	if a == b {

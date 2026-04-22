@@ -31,6 +31,7 @@ import (
 	"time"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -69,11 +70,11 @@ func (d *dialect) Name() string { return "duckdb" }
 // IndexStrategy returns an empty strategy — DuckDB has ART indexes
 // on primary keys but lake-orm's Intent hooks don't map to
 // anything we need to emit here in v0.
-func (d *dialect) IndexStrategy(lakeorm.IndexIntent) lakeorm.IndexStrategy {
+func (d *dialect) IndexStrategy(structs.IndexIntent) structs.IndexStrategy {
 	return ""
 }
 
-func (d *dialect) LayoutStrategy(lakeorm.LayoutIntent) lakeorm.LayoutStrategy { return "" }
+func (d *dialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy { return "" }
 
 func (d *dialect) qualified(table string) string {
 	if d.cfg.schema != "" {
@@ -86,7 +87,7 @@ func (d *dialect) qualified(table string) string {
 // `loc types.Location` parameter exists in the Dialect interface
 // to carry a warehouse-root URI for lake-file-format engines; it's
 // unused here because DuckDB keeps tables in its own catalog.
-func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, _ types.Location) (string, error) {
+func (d *dialect) CreateTableDDL(schema *structs.LakeSchema, _ types.Location) (string, error) {
 	if schema == nil {
 		return "", fmt.Errorf("duckdb: nil schema")
 	}

@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/structs"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -57,7 +58,7 @@ func NewScanner() *Scanner {
 // ScanRow scans a single Row produced by a Driver into dest (a *T).
 // schema is used only for column-intent introspection; the actual
 // mapping is by column name via the reflectx mapper.
-func (s *Scanner) ScanRow(row Row, dest any, _ *LakeSchema) error {
+func (s *Scanner) ScanRow(row Row, dest any, _ *structs.LakeSchema) error {
 	destValue := reflect.ValueOf(dest)
 	if destValue.Kind() != reflect.Ptr {
 		return fmt.Errorf("lakeorm: scan dest must be a pointer to struct")

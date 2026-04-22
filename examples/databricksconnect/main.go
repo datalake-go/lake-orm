@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/delta"
 	"github.com/datalake-go/lake-orm/drivers/databricksconnect"
@@ -90,7 +91,7 @@ func main() {
 		Country:   "UK",
 		CreatedAt: time.Now().Truncate(time.Microsecond),
 	}
-	if err := lakeorm.Validate(u); err != nil {
+	if err := structs.Validate(u); err != nil {
 		log.Fatalf("validate: %v", err)
 	}
 	if err := db.Insert(ctx, []*User{u}, lakeorm.ViaObjectStorage()); err != nil {

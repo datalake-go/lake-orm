@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -31,15 +32,15 @@ type DialectOption func(*config)
 type config struct {
 	catalogName    string // Spark catalog name: SQL references become <catalogName>.<db>.<table>
 	database       string // default database for unqualified table names
-	indexStrategy  map[string]lakeorm.IndexStrategy
-	layoutHint     map[string]lakeorm.LayoutStrategy
+	indexStrategy  map[string]structs.IndexStrategy
+	layoutHint     map[string]structs.LayoutStrategy
 	defaultBucketN int
 }
 
 func newConfig() *config {
 	return &config{
-		indexStrategy: map[string]lakeorm.IndexStrategy{},
-		layoutHint:    map[string]lakeorm.LayoutStrategy{},
+		indexStrategy: map[string]structs.IndexStrategy{},
+		layoutHint:    map[string]structs.LayoutStrategy{},
 		// "lakeorm" matches the catalog name the docker-compose /
 		// Helm chart register with Spark (spark.sql.catalog.lakeorm=...).
 		// If you register the Iceberg catalog under a different name
@@ -80,12 +81,12 @@ func WithDatabase(name string) DialectOption {
 
 // WithIndexStrategy overrides the default `indexed` → `bucket(N)`
 // mapping for a specific column.
-func WithIndexStrategy(column string, strategy lakeorm.IndexStrategy) DialectOption {
+func WithIndexStrategy(column string, strategy structs.IndexStrategy) DialectOption {
 	return func(cfg *config) { cfg.indexStrategy[column] = strategy }
 }
 
 // WithLayoutHint overrides the default `sortable` → sort-order mapping.
-func WithLayoutHint(column string, strategy lakeorm.LayoutStrategy) DialectOption {
+func WithLayoutHint(column string, strategy structs.LayoutStrategy) DialectOption {
 	return func(cfg *config) { cfg.layoutHint[column] = strategy }
 }
 
@@ -100,12 +101,12 @@ func WithDefaultBucketCount(n int) DialectOption {
 }
 
 // BucketPartition returns a bucket-N IndexStrategy descriptor.
-func BucketPartition(n int) lakeorm.IndexStrategy {
-	return lakeorm.IndexStrategy(fmt.Sprintf("bucket:%d", n))
+func BucketPartition(n int) structs.IndexStrategy {
+	return structs.IndexStrategy(fmt.Sprintf("bucket:%d", n))
 }
 
 // SortOrder marks a column as contributing to the table sort order.
-var SortOrder lakeorm.LayoutStrategy = "sort_order"
+var SortOrder structs.LayoutStrategy = "sort_order"
 
 // Dialect constructs the Iceberg data-dialect.
 func Dialect(opts ...DialectOption) lakeorm.Dialect {
@@ -125,17 +126,17 @@ func (d *dialect) Name() string { return "iceberg" }
 // IndexStrategy translates the lake tag intent into a physical
 // strategy. `indexed` / `mergeKey` default to bucket(cfg.defaultBucketN);
 // column-level overrides win via WithIndexStrategy.
-func (d *dialect) IndexStrategy(intent lakeorm.IndexIntent) lakeorm.IndexStrategy {
+func (d *dialect) IndexStrategy(intent structs.IndexIntent) structs.IndexStrategy {
 	switch intent {
-	case lakeorm.IntentIndexed, lakeorm.IntentMergeKey:
-		return lakeorm.IndexStrategy(fmt.Sprintf("bucket:%d", d.cfg.defaultBucketN))
+	case structs.IntentIndexed, structs.IntentMergeKey:
+		return structs.IndexStrategy(fmt.Sprintf("bucket:%d", d.cfg.defaultBucketN))
 	default:
 		return ""
 	}
 }
 
-func (d *dialect) LayoutStrategy(intent lakeorm.LayoutIntent) lakeorm.LayoutStrategy {
-	if intent == lakeorm.LayoutSortable {
+func (d *dialect) LayoutStrategy(intent structs.LayoutIntent) structs.LayoutStrategy {
+	if intent == structs.LayoutSortable {
 		return SortOrder
 	}
 	return ""
@@ -144,7 +145,7 @@ func (d *dialect) LayoutStrategy(intent lakeorm.LayoutIntent) lakeorm.LayoutStra
 // CreateTableDDL emits an Iceberg CREATE TABLE statement.
 // v0: basic schema rendering + PARTITIONED BY derived from tags;
 // v1 adds full type-system fidelity, identifier columns, sort orders.
-func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, loc types.Location) (string, error) {
+func (d *dialect) CreateTableDDL(schema *structs.LakeSchema, loc types.Location) (string, error) {
 	if schema == nil {
 		return "", fmt.Errorf("iceberg: nil schema")
 	}
@@ -209,7 +210,7 @@ func (d *dialect) qualify(table string) string {
 	return fmt.Sprintf("%s.%s.%s", d.cfg.catalogName, d.cfg.database, table)
 }
 
-func (d *dialect) partitionClause(schema *lakeorm.LakeSchema) string {
+func (d *dialect) partitionClause(schema *structs.LakeSchema) string {
 	if len(schema.Partitions) == 0 {
 		// Auto-partition on mergeKey columns as bucket(defaultN) when
 		// no explicit partition spec was declared. This is the key DX
@@ -234,22 +235,22 @@ func (d *dialect) partitionClause(schema *lakeorm.LakeSchema) string {
 	for _, p := range schema.Partitions {
 		col := schema.Fields[p.FieldIndex].Column
 		switch p.Strategy {
-		case lakeorm.PartitionRaw:
+		case structs.PartitionRaw:
 			expr = append(expr, col)
-		case lakeorm.PartitionBucket:
+		case structs.PartitionBucket:
 			n := p.Param
 			if n == 0 {
 				n = d.cfg.defaultBucketN
 			}
 			expr = append(expr, fmt.Sprintf("bucket(%d, %s)", n, col))
-		case lakeorm.PartitionTruncate:
+		case structs.PartitionTruncate:
 			expr = append(expr, fmt.Sprintf("truncate(%d, %s)", p.Param, col))
 		}
 	}
 	return " PARTITIONED BY (" + strings.Join(expr, ", ") + ")"
 }
 
-func renderStrategy(s lakeorm.IndexStrategy, col string) string {
+func renderStrategy(s structs.IndexStrategy, col string) string {
 	str := string(s)
 	if strings.HasPrefix(str, "bucket:") {
 		return fmt.Sprintf("bucket(%s, %s)", strings.TrimPrefix(str, "bucket:"), col)

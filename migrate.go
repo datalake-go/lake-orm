@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm/internal/migrations/goose"
+	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // MigrateGenerate writes one goose-format .sql file per struct with
@@ -31,12 +33,12 @@ import (
 // line 1 is `h1:<sha256 of remaining lines>`, each subsequent line is
 // `<filename> h1:<sha256 of file contents>`. Downstream tooling that
 // understands atlas.sum can detect post-generation edits.
-func (c *client) MigrateGenerate(ctx context.Context, dir string, structs ...any) ([]string, error) {
+func (c *client) MigrateGenerate(ctx context.Context, dir string, models ...any) ([]string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("lakeorm.MigrateGenerate: mkdir %s: %w", dir, err)
 	}
 
-	diffs, err := c.planLocalDiffs(ctx, dir, structs)
+	diffs, err := c.planLocalDiffs(ctx, dir, models)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +87,12 @@ func (c *client) MigrateGenerate(ctx context.Context, dir string, structs ...any
 // schema — the same one we serialise into each file's State-JSON
 // header so subsequent runs can replay it.
 type localDiff struct {
-	schema  *LakeSchema
+	schema  *structs.LakeSchema
 	target  *goose.Schema
 	changes []goose.Change
 }
 
-// planLocalDiffs resolves every struct to a LakeSchema, reconstructs
+// planLocalDiffs resolves every struct to a structs.LakeSchema, reconstructs
 // the prior target state from the most recent migration file that
 // declared the same table (Django's MigrationLoader replay pattern),
 // and diffs against the new struct. Fresh tables fall through to a
@@ -100,10 +102,10 @@ type localDiff struct {
 // cross-validate file-state vs catalog-state; the replay-from-files
 // step stays even then, because "prior state" is what a future
 // `lakeorm migrate --check` compares against to detect model drift.
-func (c *client) planLocalDiffs(_ context.Context, dir string, structs []any) ([]localDiff, error) {
-	out := make([]localDiff, 0, len(structs))
-	for _, s := range structs {
-		schema, err := ParseSchema(reflect.TypeOf(s))
+func (c *client) planLocalDiffs(_ context.Context, dir string, models []any) ([]localDiff, error) {
+	out := make([]localDiff, 0, len(models))
+	for _, s := range models {
+		schema, err := structs.ParseSchema(reflect.TypeOf(s))
 		if err != nil {
 			return nil, fmt.Errorf("lakeorm.migrate: parse %T: %w", s, err)
 		}
@@ -123,19 +125,19 @@ func (c *client) planLocalDiffs(_ context.Context, dir string, structs []any) ([
 	return out, nil
 }
 
-// lakeSchemaToMigrateSchema adapts the reflection-heavy LakeSchema
+// lakeSchemaToMigrateSchema adapts the reflection-heavy structs.LakeSchema
 // (pk/mergeKey indices, partitions, validators, auto-behaviours) to
 // the narrower goose.Schema the generator actually needs. Lives on
 // the lakeorm side so the migrate subpackage stays lakeorm-import-
 // free.
 //
-// The system-managed SystemIngestIDColumn is appended last as a
+// The system-managed types.SystemIngestIDColumn is appended last as a
 // synthetic field. Tables created pre-Phase-1 of the system-column
 // architecture (see issue #63) didn't carry it; the next
 // MigrateGenerate run detects the gap and emits
 // ALTER TABLE ... ADD COLUMN _ingest_id STRING. Nullable for backfill
 // safety — old rows stay NULL, new rows get stamped at write time.
-func lakeSchemaToMigrateSchema(s *LakeSchema) *goose.Schema {
+func lakeSchemaToMigrateSchema(s *structs.LakeSchema) *goose.Schema {
 	if s == nil {
 		return nil
 	}
@@ -159,7 +161,7 @@ func lakeSchemaToMigrateSchema(s *LakeSchema) *goose.Schema {
 		})
 	}
 	fields = append(fields, goose.Field{
-		Column:   SystemIngestIDColumn,
+		Column:   types.SystemIngestIDColumn,
 		GoType:   reflect.TypeOf(""),
 		Nullable: true,
 	})
