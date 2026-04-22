@@ -17,7 +17,6 @@
 package iceberg
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -142,8 +141,6 @@ func (d *dialect) LayoutStrategy(intent lakeorm.LayoutIntent) lakeorm.LayoutStra
 	return ""
 }
 
-func (d *dialect) Maintenance() lakeorm.Maintenance { return &maintenance{} }
-
 // CreateTableDDL emits an Iceberg CREATE TABLE statement.
 // v0: basic schema rendering + PARTITIONED BY derived from tags;
 // v1 adds full type-system fidelity, identifier columns, sort orders.
@@ -263,11 +260,6 @@ func renderStrategy(s lakeorm.IndexStrategy, col string) string {
 	return col
 }
 
-// AlterTableDDL is a v0 stub. v1 fleshes out add-column / type-widen.
-func (d *dialect) AlterTableDDL(_ *lakeorm.LakeSchema, _ *lakeorm.TableInfo) ([]string, error) {
-	return nil, lakeorm.ErrNotImplemented
-}
-
 // PlanInsert routes to DirectIngest, ParquetIngest, or ParquetMerge
 // based on batch size, caller-requested overrides, and whether the
 // schema declares any mergeKey field. mergeKey presence turns the
@@ -315,21 +307,8 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 	}, nil
 }
 
-// PlanUpsert / PlanDelete / PlanQuery are v0 stubs beyond the SQL shape
-// for the basic query path. Dialect owns the shape because dialect-specific
-// merge semantics differ significantly.
-func (d *dialect) PlanUpsert(lakeorm.UpsertRequest) (lakeorm.ExecutionPlan, error) {
-	return lakeorm.ExecutionPlan{}, lakeorm.ErrNotImplemented
-}
-
-func (d *dialect) PlanDelete(req lakeorm.DeleteRequest) (lakeorm.ExecutionPlan, error) {
-	return lakeorm.ExecutionPlan{
-		Kind: lakeorm.KindDDL,
-		SQL:  fmt.Sprintf("DELETE FROM %s WHERE %s", d.qualify(req.Schema.TableName), req.Where),
-		Args: req.Args,
-	}, nil
-}
-
+// PlanQuery plans a dynamic read — used by Client.Query when the
+// generic Query[T] family isn't suitable.
 func (d *dialect) PlanQuery(req lakeorm.QueryRequest) (lakeorm.ExecutionPlan, error) {
 	cols := req.Columns
 	if len(cols) == 0 {
@@ -372,18 +351,4 @@ func toBuildOrder(in []lakeorm.OrderSpec) []sqlbuild.OrderSpec {
 
 func goTypeToIceberg(t any) (string, error) {
 	return goReflectTypeToIceberg(t)
-}
-
-type maintenance struct{}
-
-func (maintenance) Optimize(context.Context, string, lakeorm.MaintenanceOptions) error {
-	return lakeorm.ErrNotImplemented
-}
-
-func (maintenance) Vacuum(context.Context, string, lakeorm.VacuumOptions) error {
-	return lakeorm.ErrNotImplemented
-}
-
-func (maintenance) Stats(context.Context, string) (lakeorm.TableStats, error) {
-	return lakeorm.TableStats{}, lakeorm.ErrNotImplemented
 }

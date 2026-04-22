@@ -78,15 +78,11 @@ type stubDialect struct{ name string }
 func (s stubDialect) Name() string                               { return s.name }
 func (s stubDialect) IndexStrategy(IndexIntent) IndexStrategy    { return "" }
 func (s stubDialect) LayoutStrategy(LayoutIntent) LayoutStrategy { return "" }
-func (s stubDialect) Maintenance() Maintenance                   { return nil }
 func (s stubDialect) CreateTableDDL(*LakeSchema, types.Location) (string, error) {
 	return "", nil
 }
-func (s stubDialect) AlterTableDDL(*LakeSchema, *TableInfo) ([]string, error) { return nil, nil }
-func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)           { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error)          { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanUpsert(UpsertRequest) (ExecutionPlan, error)         { return ExecutionPlan{}, nil }
-func (s stubDialect) PlanDelete(DeleteRequest) (ExecutionPlan, error)         { return ExecutionPlan{}, nil }
+func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)  { return ExecutionPlan{}, nil }
+func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error) { return ExecutionPlan{}, nil }
 
 // TestMigrateGenerate_LegacyStateTriggersIngestIDAdd pins the
 // Phase-3 migration path from issue #63: a table whose most recent
@@ -159,12 +155,3 @@ func TestSlugifyTable(t *testing.T) {
 	}
 }
 
-func TestAssertSchema_StubPath(t *testing.T) {
-	c := &client{dialect: stubDialect{name: "iceberg"}}
-	if err := c.AssertSchema(context.Background()); err != nil {
-		t.Errorf("empty input should be no-op, got %v", err)
-	}
-	if err := c.AssertSchema(context.Background(), &genUser{}); err == nil {
-		t.Errorf("expected ErrNotImplemented for populated call in v0")
-	}
-}

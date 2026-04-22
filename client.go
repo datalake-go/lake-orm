@@ -2,6 +2,7 @@ package lakeorm
 
 import (
 	"context"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -9,47 +10,48 @@ import (
 // Client is the main entry point. All methods are safe to call
 // concurrently; the internal session pool serializes per-session state
 // as needed.
+//
+// The surface matches what the README promises: validated writes via
+// Insert (which auto-routes to MERGE when the struct carries a
+// mergeKey), typed reads via the top-level Query[T] generics over
+// DataFrame, bootstrap via Migrate, migration authoring via
+// MigrateGenerate, staging cleanup via CleanupStaging, and escape
+// hatches Exec / DataFrame for anything the typed surface doesn't
+// cover.
 type Client interface {
-	// Core CRUD. records is *T, []*T, or []T where T has `spark` tags.
-	// Validation runs before any I/O.
+	// Insert writes records (pointer, slice, or slice-of-pointer) to
+	// the target table. Validation runs first; then the Dialect
+	// plans KindDirectIngest (small batch), KindParquetIngest (large
+	// append), or KindParquetMerge (struct carries mergeKey) and the
+	// Driver executes.
 	Insert(ctx context.Context, records any, opts ...InsertOption) error
-	InsertRaw(ctx context.Context, records any, opts ...InsertOption) RawInsertion
-	Update(ctx context.Context, records any, opts ...UpdateOption) error
-	Upsert(ctx context.Context, records any, opts ...UpsertOption) error
-	Delete(ctx context.Context, records any, opts ...DeleteOption) error
 
 	// Query is the dynamic (non-generic) entry point. Prefer the
 	// top-level lakeorm.Query[T] / QueryStream[T] / QueryFirst[T]
 	// helpers when T is known at compile time.
 	Query(ctx context.Context) QueryBuilder
 
-	// Escape hatches to raw SQL / DataFrame / Spark.
+	// Exec runs a raw SQL statement that returns no rows (DDL, DML
+	// that the typed surface doesn't cover).
 	Exec(ctx context.Context, sql string, args ...any) (ExecResult, error)
+
+	// DataFrame is the escape hatch for CQRS reads — hand a SQL
+	// string in, get a driver-agnostic DataFrame back, then
+	// materialise with lakeorm.CollectAs[T] / StreamAs[T] / FirstAs[T].
 	DataFrame(ctx context.Context, sql string, args ...any) (DataFrame, error)
-	Session(ctx context.Context) (*PooledSession, error)
 
 	// Migrate is the bootstrap path — idempotent CREATE TABLE IF NOT
-	// EXISTS derived from struct tags. Sufficient for dev + fresh
-	// tables; schema evolution on existing tables goes through
-	// lake-goose (authoring via MigrateGenerate, execution via the
-	// goose-spark-ish CLI or goose's library API against the
-	// database/sql driver in datalake-go/spark-connect-go).
+	// EXISTS derived from struct tags. Sufficient for dev and fresh
+	// tables; ALTER TABLE-shaped schema evolution goes through
+	// MigrateGenerate + lake-goose.
 	Migrate(ctx context.Context, models ...any) error
-	Maintain() Maintenance
-	Ping(ctx context.Context) error
-	Close() error
-
-	// MetricsRegistry returns the Prometheus registry lakeorm writes
-	// runtime metrics into. Returns nil at v0 as a placeholder for
-	// v1+ integration.
-	MetricsRegistry() *prometheus.Registry
 
 	// MigrateGenerate writes iceberg/delta-dialect .sql files for any
-	// pending struct diffs into dir, in goose's migration-file format.
-	// Destructive operations (DROP COLUMN, RENAME COLUMN, type
-	// narrowings, NOT-NULL tightenings) land with a `-- DESTRUCTIVE:
-	// <reason>` informational comment so the reviewer notices them in
-	// the PR diff.
+	// pending struct diffs into dir, in goose's migration-file
+	// format. Destructive operations (DROP COLUMN, RENAME COLUMN,
+	// type narrowings, NOT-NULL tightenings) land with a
+	// `-- DESTRUCTIVE: <reason>` informational comment so the
+	// reviewer notices them in the PR diff.
 	//
 	// Execution is not this library's job — it belongs to lake-goose
 	// running against the Spark Connect database/sql driver. An
@@ -59,21 +61,18 @@ type Client interface {
 	// Returns the list of generated file paths.
 	MigrateGenerate(ctx context.Context, dir string, structs ...any) ([]string, error)
 
-	// AssertSchema verifies the catalog's current schema matches
-	// compiled code's expectation (SchemaFingerprint) for each
-	// struct. Recommended at app startup after lakeorm.Verify.
-	// v0 stub — the DESCRIBE TABLE catalog read lands in v1.
-	AssertSchema(ctx context.Context, structs ...any) error
-}
+	// CleanupStaging walks the Backend's _staging/ namespace and
+	// deletes prefixes older than olderThan. Intended as a periodic
+	// janitor (e.g. goroutine on a ticker) to sweep orphaned parquet
+	// from aborted Insert calls.
+	CleanupStaging(ctx context.Context, olderThan time.Duration) (*CleanupReport, error)
 
-// RawInsertion is the opt-in raw-then-merge escape hatch for
-// genuinely untrusted external inputs (research datasets, untyped
-// third-party feeds, CSVs of unknown provenance). It is NOT the
-// default — db.Insert writes straight to the target table. Bronze-
-// style landing zones exist here as a conscious opt-in, never as
-// an accidental default.
-type RawInsertion interface {
-	ThenMerge(ctx context.Context, opts MergeOpts) error
-	AsyncThenMerge(opts MergeOpts) MergeFuture
-	Commit(ctx context.Context) error
+	// MetricsRegistry returns the Prometheus registry lakeorm writes
+	// runtime metrics into. Consumed by the composed runtime
+	// (lakehouse) to expose /metrics. Returns nil at v0.
+	MetricsRegistry() *prometheus.Registry
+
+	// Close releases the underlying driver, session pool, and any
+	// backend resources. Safe to call once at process shutdown.
+	Close() error
 }

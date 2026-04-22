@@ -8,13 +8,12 @@ import (
 
 // Sentinel errors used across the package.
 var (
-	ErrNotImplemented    = errors.New("lakeorm: not implemented")
-	ErrAlreadyCommitted  = errors.New("lakeorm: finalizer already committed")
-	ErrNoRows            = errors.New("lakeorm: no rows")
-	ErrSessionPoolClosed = errors.New("lakeorm: session pool closed")
-	ErrInvalidTag        = errors.New("lakeorm: invalid struct tag")
-	ErrUnknownDriver     = errors.New("lakeorm: unknown driver")
-	ErrDriverMismatch    = errors.New("lakeorm: driver mismatch")
+	ErrNotImplemented   = errors.New("lakeorm: not implemented")
+	ErrAlreadyCommitted = errors.New("lakeorm: finalizer already committed")
+	ErrNoRows           = errors.New("lakeorm: no rows")
+	ErrInvalidTag       = errors.New("lakeorm: invalid struct tag")
+	ErrUnknownDriver    = errors.New("lakeorm: unknown driver")
+	ErrDriverMismatch   = errors.New("lakeorm: driver mismatch")
 )
 
 // ErrClusterNotReady indicates the backing Spark cluster is warming
@@ -85,51 +84,4 @@ func NewClusterNotReady(err error) *ErrClusterNotReady {
 		Message:   "The cluster is starting up. Please retry your request in a few moments.",
 		Cause:     err,
 	}
-}
-
-// ErrClientStaging is returned when the Go client fails to write a
-// staging object via Backend. Indicates a client-side reachability or
-// credential problem.
-type ErrClientStaging struct {
-	URI         string
-	BackendName string
-	Op          string // "stage-write" | "probe-write" | "cleanup"
-	Cause       error
-}
-
-func (e *ErrClientStaging) Error() string {
-	return fmt.Sprintf("lakeorm: client-side %s failed on %s (backend=%s): %v",
-		e.Op, e.URI, e.BackendName, e.Cause)
-}
-func (e *ErrClientStaging) Unwrap() error { return e.Cause }
-
-// ErrDriverRead is returned when the compute driver fails to read a
-// staging prefix that the client wrote successfully. Indicates the
-// driver cannot see (or cannot authenticate against) storage the
-// client can reach — the split-view failure mode where client and
-// driver credentials diverge silently.
-type ErrDriverRead struct {
-	StagingURI string
-	DriverName string
-	Cause      error
-}
-
-func (e *ErrDriverRead) Error() string {
-	return fmt.Sprintf("lakeorm: driver %s failed to read %s: %v",
-		e.DriverName, e.StagingURI, e.Cause)
-}
-func (e *ErrDriverRead) Unwrap() error { return e.Cause }
-
-// ErrURIMismatch is returned when client and driver both succeed at
-// their respective operations but resolve the same URI to different
-// physical storage. Detected by lakeorm.Verify via probe comparison.
-type ErrURIMismatch struct {
-	ClientURI string
-	DriverURI string
-	Detail    string
-}
-
-func (e *ErrURIMismatch) Error() string {
-	return fmt.Sprintf("lakeorm: URI mismatch between client (%s) and driver (%s): %s",
-		e.ClientURI, e.DriverURI, e.Detail)
 }

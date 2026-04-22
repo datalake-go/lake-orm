@@ -36,3 +36,12 @@ type Row interface {
 // iteration, constant memory, natural backpressure. It is an alias
 // for iter.Seq2[Row, error] so it rangeable directly.
 type RowStream = iter.Seq2[Row, error]
+
+// ColumnInfo describes one column of a DataFrame's result schema.
+// Returned by DataFrame.Schema so callers can inspect result shapes
+// before materialising.
+type ColumnInfo struct {
+	Name     string
+	DataType string
+	Nullable bool
+}

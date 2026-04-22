@@ -37,13 +37,12 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	// Generate the per-operation ingest_id up-front. Used as:
 	//   - staging prefix key (<warehouse>/<ingest_id>/part-*.parquet)
 	//   - janitor filter (UUIDv7 embeds a ms timestamp)
-	//   - (Phase 2) MERGE filter on the parquet-staging source to
-	//     bound the upsert scope and make retry-on-OCC-conflict
-	//     idempotent
+	//   - MERGE filter on the parquet-staging source to bound the
+	//     upsert scope and make retry-on-OCC-conflict idempotent
 	//
 	// UUIDv7 so the staging prefix is time-sortable and
 	// CleanupStaging can identify orphans by parsing the embedded
-	// ms-precision timestamp — see INGEST_ID.md.
+	// ms-precision timestamp.
 	ingestUUID, err := uuid.NewV7()
 	if err != nil {
 		return fmt.Errorf("lakeorm.Insert: generate ingest_id: %w", err)
@@ -99,14 +98,6 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	}
 }
 
-func (c *client) InsertRaw(_ context.Context, _ any, _ ...InsertOption) RawInsertion {
-	return &stubRawInsertion{err: ErrNotImplemented}
-}
-
-func (c *client) Update(context.Context, any, ...UpdateOption) error { return ErrNotImplemented }
-func (c *client) Upsert(context.Context, any, ...UpsertOption) error { return ErrNotImplemented }
-func (c *client) Delete(context.Context, any, ...DeleteOption) error { return ErrNotImplemented }
-
 func (c *client) Query(ctx context.Context) QueryBuilder {
 	return &dynamicQuery{client: c, ctx: ctx}
 }
@@ -117,13 +108,6 @@ func (c *client) Exec(ctx context.Context, sql string, args ...any) (ExecResult,
 
 func (c *client) DataFrame(ctx context.Context, sql string, args ...any) (DataFrame, error) {
 	return c.driver.DataFrame(ctx, sql, args...)
-}
-
-// Session returns a typed pooled session. v0 stub — the PooledSession
-// type wraps Driver.DataFrame / Exec for raw SQL work without the
-// Dialect layer.
-func (c *client) Session(context.Context) (*PooledSession, error) {
-	return nil, ErrNotImplemented
 }
 
 func (c *client) Migrate(ctx context.Context, models ...any) error {
@@ -159,42 +143,9 @@ func (c *client) Migrate(ctx context.Context, models ...any) error {
 	return nil
 }
 
-func (c *client) Maintain() Maintenance { return c.dialect.Maintenance() }
-
-func (c *client) Ping(ctx context.Context) error {
-	_, err := c.driver.Exec(ctx, "SELECT 1")
-	return err
-}
-
 func (c *client) Close() error { return c.driver.Close() }
 
 // MetricsRegistry is a v0 placeholder. v1+ returns a populated
 // *prometheus.Registry carrying the lakeorm_* counter / histogram /
-// gauge set documented in MONETIZATION.md.
+// gauge set.
 func (c *client) MetricsRegistry() *prometheus.Registry { return nil }
-
-// PooledSession is the typed-session handle returned by Client.Session.
-// v0: wraps driver.DataFrame/Exec; in v1 it carries the raw
-// scsql.SparkSession through for users who need it directly.
-type PooledSession struct {
-	driver Driver
-	ctx    context.Context
-}
-
-func (s *PooledSession) Sql(ctx context.Context, query string) (DataFrame, error) {
-	return s.driver.DataFrame(ctx, query)
-}
-
-func (s *PooledSession) Exec(ctx context.Context, query string) (ExecResult, error) {
-	return s.driver.Exec(ctx, query)
-}
-
-func (s *PooledSession) Table(name string) (DataFrame, error) {
-	return s.driver.DataFrame(s.ctx, "SELECT * FROM "+name)
-}
-
-type stubRawInsertion struct{ err error }
-
-func (r *stubRawInsertion) ThenMerge(context.Context, MergeOpts) error { return r.err }
-func (r *stubRawInsertion) AsyncThenMerge(MergeOpts) MergeFuture       { return nil }
-func (r *stubRawInsertion) Commit(context.Context) error               { return r.err }

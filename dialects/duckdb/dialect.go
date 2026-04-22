@@ -25,7 +25,6 @@
 package duckdb
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -75,7 +74,6 @@ func (d *dialect) IndexStrategy(lakeorm.IndexIntent) lakeorm.IndexStrategy {
 }
 
 func (d *dialect) LayoutStrategy(lakeorm.LayoutIntent) lakeorm.LayoutStrategy { return "" }
-func (d *dialect) Maintenance() lakeorm.Maintenance                           { return &maintenance{} }
 
 func (d *dialect) qualified(table string) string {
 	if d.cfg.schema != "" {
@@ -157,10 +155,6 @@ func goTypeToDuckDB(t reflect.Type) (string, error) {
 	}
 }
 
-func (d *dialect) AlterTableDDL(*lakeorm.LakeSchema, *lakeorm.TableInfo) ([]string, error) {
-	return nil, lakeorm.ErrNotImplemented
-}
-
 // PlanInsert routes to KindDirectIngest regardless of batch size.
 // DuckDB has no multi-file COPY-INTO-from-staging idiom the
 // object-storage fast path expects; bulk inserts go straight
@@ -185,18 +179,6 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 		Target:   d.qualified(req.Schema.TableName),
 		Rows:     req.Records,
 		Schema:   req.Schema,
-	}, nil
-}
-
-func (d *dialect) PlanUpsert(lakeorm.UpsertRequest) (lakeorm.ExecutionPlan, error) {
-	return lakeorm.ExecutionPlan{}, lakeorm.ErrNotImplemented
-}
-
-func (d *dialect) PlanDelete(req lakeorm.DeleteRequest) (lakeorm.ExecutionPlan, error) {
-	return lakeorm.ExecutionPlan{
-		Kind: lakeorm.KindDDL,
-		SQL:  fmt.Sprintf("DELETE FROM %s WHERE %s", d.qualified(req.Schema.TableName), req.Where),
-		Args: req.Args,
 	}, nil
 }
 
@@ -230,16 +212,3 @@ func (d *dialect) PlanQuery(req lakeorm.QueryRequest) (lakeorm.ExecutionPlan, er
 	}, nil
 }
 
-type maintenance struct{}
-
-func (maintenance) Optimize(context.Context, string, lakeorm.MaintenanceOptions) error {
-	return lakeorm.ErrNotImplemented
-}
-
-func (maintenance) Vacuum(context.Context, string, lakeorm.VacuumOptions) error {
-	return lakeorm.ErrNotImplemented
-}
-
-func (maintenance) Stats(context.Context, string) (lakeorm.TableStats, error) {
-	return lakeorm.TableStats{}, lakeorm.ErrNotImplemented
-}

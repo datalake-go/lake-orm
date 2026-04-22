@@ -8,8 +8,9 @@ import (
 
 // ExecutionPlan is the opaque artifact a Dialect hands to a Driver. The
 // Driver executes the plan without knowing the Dialect's name. Internally
-// it is a tagged union of variants (DirectIngest, ParquetIngest, SQL,
-// Stream); Dialect constructs them, Driver reads the Kind and dispatches.
+// it is a tagged union of variants (DirectIngest, ParquetIngest,
+// ParquetMerge, SQL, Stream, DDL); Dialect constructs them, Driver
+// reads the Kind and dispatches.
 //
 // The type is intentionally a struct (not an interface) so the wire
 // shape can evolve without breaking v1+ drivers that consume plans
@@ -87,23 +88,6 @@ type WriteRequest struct {
 	Options       map[string]any // dialect-specific overrides
 }
 
-// UpsertRequest / DeleteRequest share the same shape at v0.
-type UpsertRequest struct {
-	Ctx     context.Context
-	Schema  *LakeSchema
-	Records any
-	OnMatch MergeAction
-	Backend Backend
-}
-
-type DeleteRequest struct {
-	Ctx     context.Context
-	Schema  *LakeSchema
-	Where   string
-	Args    []any
-	Backend Backend
-}
-
 // QueryRequest is what the Client hands the Dialect on query execution.
 type QueryRequest struct {
 	Ctx      context.Context
@@ -117,6 +101,7 @@ type QueryRequest struct {
 	Offset   int
 }
 
+// OrderSpec is a single column + direction for Query / QueryBuilder.
 type OrderSpec struct {
 	Column string
 	Desc   bool
@@ -128,15 +113,6 @@ func NewOrderSpec(column string, desc bool) OrderSpec {
 	return OrderSpec{Column: column, Desc: desc}
 }
 
-// MergeAction is the Upsert conflict strategy.
-type MergeAction int
-
-const (
-	MergeUpdate MergeAction = iota
-	MergeIgnore
-	MergeError
-)
-
 // WritePath is the caller's optional override of the Dialect's routing.
 type WritePath int
 
@@ -145,16 +121,3 @@ const (
 	WritePathGRPC
 	WritePathObjectStorage
 )
-
-// MergeOpts is passed to RawInsertion.ThenMerge for the raw-then-merge
-// escape hatch.
-type MergeOpts struct {
-	Key         string
-	TargetTable string
-	Filter      string
-}
-
-// MergeFuture is returned by RawInsertion.AsyncThenMerge. Stub at v0.
-type MergeFuture interface {
-	Wait(ctx context.Context) error
-}

@@ -80,28 +80,6 @@ func (c *client) MigrateGenerate(ctx context.Context, dir string, structs ...any
 	return written, nil
 }
 
-// AssertSchema compares each struct's compiled SchemaFingerprint
-// against the runtime fingerprint lakeorm derives from a DESCRIBE
-// TABLE round-trip. v0 stub — the DESCRIBE plumbing lands with the
-// v1 catalog-introspection PR; until then, AssertSchema returns nil
-// for empty input and ErrNotImplemented for anything else so services
-// can wire it into startup health checks without the call failing
-// loudly in v0.
-func (c *client) AssertSchema(_ context.Context, structs ...any) error {
-	if len(structs) == 0 {
-		return nil
-	}
-	// Exercise SchemaFingerprint on every supplied struct so mistakes
-	// in tag grammar surface here rather than at first migration-
-	// generation time.
-	for _, s := range structs {
-		if _, err := SchemaFingerprint(s); err != nil {
-			return fmt.Errorf("lakeorm.AssertSchema: %T: %w", s, err)
-		}
-	}
-	return fmt.Errorf("lakeorm.AssertSchema: %w (catalog-state read pending the v1 DESCRIBE TABLE implementation)", ErrNotImplemented)
-}
-
 // localDiff pairs a target schema with the changes lakeorm would
 // generate a file for. target is the migrate-flavoured view of the
 // schema — the same one we serialise into each file's State-JSON
