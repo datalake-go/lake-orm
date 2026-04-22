@@ -6,18 +6,24 @@
 //
 // Convertible is the read-side capability. It exists so lake-orm
 // never has to own a query grammar: a caller hands the driver a
-// closure that produces the driver's native row source (a Spark
-// DataFrame, a *sql.Rows, an Arrow Record, whatever the driver
-// decides is canonical), and the driver decodes each row into the
-// user-supplied Go type. Drivers that implement Convertible
-// participate in lakeorm.Query[T] / QueryStream[T] / QueryFirst[T].
+// Source closure that produces the driver's native row source (a
+// Spark DataFrame, a *sql.Rows, an Arrow Record, whatever the
+// driver decides is canonical), and the driver decodes each row
+// into the user-supplied Go type. Drivers that implement
+// Convertible participate in lakeorm.Query[T] / QueryStream[T] /
+// QueryFirst[T].
 //
-// Per-driver conversion helpers (the FromSQL / FromDataFrame /
-// FromRows / FromTable / FromRow families in each sibling driver
-// package) build the closure for common cases so callers write one
-// line instead of six. Anything the helpers don't cover can be
-// expressed as a bare closure — five lines of glue at the call site,
-// no framework primitives.
+// Per-driver conversion helpers — FromSQL / FromDataFrame /
+// FromRows / FromTable / FromRow, each a method on the concrete
+// driver type — build the Source for common cases so callers
+// write one line instead of six:
+//
+//	drv := db.Driver().(*spark.Driver)
+//	users, _ := lakeorm.Query[User](ctx, db, drv.FromSQL("SELECT * FROM users"))
+//
+// Anything the helpers don't cover can be expressed as a bare
+// closure: five lines of glue at the call site, no framework
+// primitives.
 package drivers
 
 import (
@@ -25,42 +31,37 @@ import (
 	"iter"
 )
 
-// Convertible is the optional driver capability: given a Native
-// function that produces the driver's own row source, decode each
-// row into the user-supplied Go type.
+// Source is the closure a caller hands to a Convertible read. It
+// returns the driver's native row source when invoked — e.g. a
+// sparksql.DataFrame for the Spark driver, a *sql.Rows for
+// DuckDB / Databricks SQL. The concrete type is opaque to the
+// caller; the Convertible implementation type-asserts to its own
+// known native type and fails fast if something else came back.
+type Source func(ctx context.Context) (any, error)
+
+// Convertible is the optional driver capability: given a Source
+// that produces the driver's own native row type, decode each row
+// into the user-supplied Go target.
 //
-// Three methods match the three typed-read shapes the top-level
-// lakeorm helpers expose:
+// The three methods match the three typed-read shapes the top-
+// level lakeorm helpers expose:
 //
-//   - Collect writes every decoded row into *[]T.
-//   - First writes the first decoded row into *T (or returns
-//     errors.ErrNoRows if the source yielded zero rows).
-//   - Stream yields decoded rows one at a time as the driver walks
-//     its native source; constant memory regardless of result size.
+//   - Collect walks the source end-to-end and writes every
+//     decoded row into out, which must be a *[]T.
+//   - First walks the source until the first row, writes the
+//     decoded value into out (a *T), returns errors.ErrNoRows
+//     if the source yielded zero rows.
+//   - Stream yields one decoded row at a time as the driver
+//     walks the source; constant memory regardless of result
+//     size. sample is a *T so the driver reflects to discover T
+//     once at the top of iteration.
 //
-// The source closure returns any because different drivers return
-// different native types — sparksql.DataFrame for Spark,
-// *sql.Rows for DuckDB / Databricks SQL, etc. The driver's
-// Convertible implementation knows how to decode ITS OWN native
-// type into T and fails fast with a typed error when the closure
-// hands back a type it doesn't recognise.
-//
-// The out parameter on Collect / First uses reflection to discover
-// T — callers pass &[]T or &T, the driver reflects to find the
-// element type, and drives decoding from there. Stream takes a
-// sample *T (a pointer to a zero value) for the same reason.
+// Reflection-via-out is the lingua franca between the driver and
+// the typed helpers. Drivers that hold their decode path as a
+// Go-generics call internally can still satisfy this interface by
+// reflecting on out and dispatching.
 type Convertible interface {
-	// Collect runs source(ctx) to obtain a native row source and
-	// decodes every row into out, which must be a *[]T.
-	Collect(ctx context.Context, source func(context.Context) (any, error), out any) error
-
-	// First runs source(ctx), decodes the first row into out
-	// (a *T), and returns errors.ErrNoRows if the source is empty.
-	First(ctx context.Context, source func(context.Context) (any, error), out any) error
-
-	// Stream runs source(ctx) and yields each decoded row. sample
-	// is a *T pointing at a zero value; the driver uses reflect
-	// to discover T and yields each successive row as an any that
-	// the caller type-asserts back to T. Constant memory.
-	Stream(ctx context.Context, source func(context.Context) (any, error), sample any) iter.Seq2[any, error]
+	Collect(ctx context.Context, source Source, out any) error
+	First(ctx context.Context, source Source, out any) error
+	Stream(ctx context.Context, source Source, sample any) iter.Seq2[any, error]
 }
