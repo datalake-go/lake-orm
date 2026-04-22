@@ -39,7 +39,7 @@ func TestS3Backend_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("backend.Writer: %v", err)
 	}
-	payload := bytes.Repeat([]byte("dorm"), 256) // 1 KiB
+	payload := bytes.Repeat([]byte("lakeorm"), 256) // 1 KiB
 	if _, err := w.Write(payload); err != nil {
 		t.Fatalf("write: %v", err)
 	}

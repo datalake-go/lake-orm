@@ -1,4 +1,4 @@
-// Package dorm is the Go ORM for data lakes. Typed structs are the
+// Package lakeorm is the Go ORM for data lakes. Typed structs are the
 // schema contract; validation happens at the application boundary;
 // writes go directly to the target Iceberg or Delta table via Spark
 // Connect — no bronze landing zone by default.
@@ -54,7 +54,7 @@ func Open(driver Driver, dialect Dialect, backend Backend, opts ...ClientOption)
 }
 
 // OpenFromConfig loads lakeorm.toml from disk and opens a Client. v0 stub
-// — real TOML parsing lands alongside the `cmd/dorm stack` subcommand.
+// — real TOML parsing lands alongside the `cmd/lakeorm stack` subcommand.
 func OpenFromConfig(_ context.Context, _ string) (Client, error) {
 	return nil, fmt.Errorf("lakeorm.OpenFromConfig: %w (use lakeorm.Open or lakeorm.Local in v0)", ErrNotImplemented)
 }

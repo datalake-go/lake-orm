@@ -8,7 +8,7 @@ import (
 
 // goReflectTypeToIceberg translates a Go type to its Iceberg SQL
 // equivalent. v0 supports the common primitives; struct/slice types
-// are serialized via the dorm `json` tag and end up as STRING.
+// are serialized via the lake `json` tag and end up as STRING.
 func goReflectTypeToIceberg(t any) (string, error) {
 	rt, ok := t.(reflect.Type)
 	if !ok {

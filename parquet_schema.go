@@ -14,13 +14,13 @@ import (
 var timeType = reflect.TypeOf(time.Time{})
 
 // ParquetSchema is the bridge between a LakeSchema (the user's
-// dorm-tagged model) and a parquet schema (what the fast-path writer
+// lake-tagged model) and a parquet schema (what the fast-path writer
 // serializes against). The whole point: users tag their structs with
 // `spark:"..."` once; they do NOT need to also write `parquet:"..."`
 // tags. The translation lives here.
 //
 // Internally it synthesizes an anonymous struct type at runtime whose
-// parquet tags are derived from dorm tags, then hands that type to
+// parquet tags are derived from lake tags, then hands that type to
 // parquet.SchemaOf. At write time, user rows are projected field-by-
 // field into the synthesized struct.
 //
@@ -50,7 +50,7 @@ type parquetFieldProjection struct {
 // ParquetSchema directly.
 func BuildParquetSchema(lake *LakeSchema) (*ParquetSchema, error) {
 	if lake == nil {
-		return nil, fmt.Errorf("dorm: BuildParquetSchema requires a non-nil LakeSchema")
+		return nil, fmt.Errorf("lakeorm: BuildParquetSchema requires a non-nil LakeSchema")
 	}
 
 	fields := make([]reflect.StructField, 0, len(lake.Fields)+1)
@@ -130,9 +130,9 @@ func (p *ParquetSchema) ConverterFor(ingestID string) func(any) any {
 
 // buildParquetTag renders the parquet-go struct-tag string for a
 // LakeField. Translation rules (extend here when v1 adds a new
-// dorm modifier or column kind):
+// lake tag modifier or column kind):
 //
-//   - Column name comes from the dorm tag (or snake_case field name).
+//   - Column name comes from the lake tag (or snake_case field name).
 //   - time.Time → `timestamp(microsecond)`. parquet-go defaults to
 //     TIMESTAMP(NANOS); Spark, Iceberg, Delta, DuckDB, and Polars all
 //     want MICROS. Fixed here once so user structs never set it.

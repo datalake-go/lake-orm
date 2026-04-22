@@ -111,8 +111,8 @@ func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, _ types.Location) (
 	// System-managed ingest_id column: every table lake-orm creates
 	// carries this, stamped per-Insert at the driver layer. Nullable
 	// so pre-existing tables can gain the column via ALTER TABLE
-	// without a backfill. See lakeorm.SystemIngestIDColumn.
-	cols = append(cols, lakeorm.SystemIngestIDColumn+" VARCHAR")
+	// without a backfill. See types.SystemIngestIDColumn.
+	cols = append(cols, types.SystemIngestIDColumn+" VARCHAR")
 	return fmt.Sprintf(
 		"CREATE TABLE IF NOT EXISTS %s (%s)",
 		d.qualified(schema.TableName), strings.Join(cols, ", "),

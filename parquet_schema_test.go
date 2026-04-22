@@ -23,7 +23,7 @@ type pqTestUser struct {
 
 // TestBuildParquetSchema_SurfaceShape pins the visible columns the
 // schema synthesizer produces. If this test ever fails, the
-// dorm→parquet translation is dropping or adding a column that user
+// lake→parquet translation is dropping or adding a column that user
 // code doesn't expect.
 func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
 	lake, err := ParseSchema(reflect.TypeOf(pqTestUser{}))

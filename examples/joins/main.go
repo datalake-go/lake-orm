@@ -8,7 +8,7 @@
 // What this demonstrates — the read-side pattern lakeorm
 // advocates:
 //
-//   - Writes go through dorm-tagged entities (User, Order below).
+//   - Writes go through lake-tagged entities (User, Order below).
 //     The struct is the source of truth for the persisted schema.
 //   - Reads that involve joins or aggregates go through the fork's
 //     raw DataFrame (Spark SQL here, DataFrame builder optional),
@@ -66,10 +66,10 @@ type UserOrderTotal struct {
 func main() {
 	ctx := context.Background()
 
-	sparkURI := envOr("DORM_SPARK_URI", "sc://localhost:15002")
+	sparkURI := envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")
 	s3DSN := envOr(
-		"DORM_S3_DSN",
-		"s3://dorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=dorm&secret_key=dorm",
+		"LAKEORM_S3_DSN",
+		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	)
 
 	store, err := backend.S3(s3DSN)

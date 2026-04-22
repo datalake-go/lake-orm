@@ -54,7 +54,7 @@ func (p *SessionPool) Borrow(ctx context.Context) (scsql.SparkSession, error) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
-		return nil, errors.New("dorm/spark: session pool closed")
+		return nil, errors.New("lakeorm/spark: session pool closed")
 	}
 	if n := len(p.idle); n > 0 {
 		s := p.idle[n-1]

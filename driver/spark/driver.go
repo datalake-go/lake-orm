@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // driver is the shared Spark Connect driver backing both Remote and
@@ -95,7 +96,7 @@ func (d *driver) executeParquetIngest(ctx context.Context, plan lakeorm.Executio
 
 	// View name derived from the staging prefix — guaranteed unique
 	// per ingest by the SortableID the Client generates.
-	viewName := "dorm_staging_" + sanitizeIdent(plan.Staging.Prefix)
+	viewName := "lakeorm_staging_" + sanitizeIdent(plan.Staging.Prefix)
 	uri := plan.Staging.Location.URI()
 
 	// `INSERT INTO target SELECT * FROM staging` works because the
@@ -147,7 +148,7 @@ func (d *driver) executeParquetMerge(ctx context.Context, plan lakeorm.Execution
 		return lakeorm.Result{}, nopFinalizer{}, err
 	}
 
-	viewName := "dorm_staging_" + sanitizeIdent(plan.Staging.Prefix)
+	viewName := "lakeorm_staging_" + sanitizeIdent(plan.Staging.Prefix)
 	uri := plan.Staging.Location.URI()
 
 	// ON clause: AND-joined equality on every mergeKey field.
@@ -164,7 +165,7 @@ func (d *driver) executeParquetMerge(ctx context.Context, plan lakeorm.Execution
 			"ON %s "+
 			"WHEN MATCHED THEN UPDATE SET * "+
 			"WHEN NOT MATCHED THEN INSERT *",
-		plan.Target, viewName, lakeorm.SystemIngestIDColumn, plan.IngestID, onClause,
+		plan.Target, viewName, types.SystemIngestIDColumn, plan.IngestID, onClause,
 	)
 
 	f := &parquetIngestFinalizer{

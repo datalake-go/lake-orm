@@ -41,11 +41,11 @@ func newConfig() *config {
 	return &config{
 		indexStrategy: map[string]lakeorm.IndexStrategy{},
 		layoutHint:    map[string]lakeorm.LayoutStrategy{},
-		// "dorm" matches the catalog name the docker-compose /
-		// Helm chart register with Spark (spark.sql.catalog.dorm=...).
+		// "lakeorm" matches the catalog name the docker-compose /
+		// Helm chart register with Spark (spark.sql.catalog.lakeorm=...).
 		// If you register the Iceberg catalog under a different name
 		// on your Spark cluster, override via WithCatalogName.
-		catalogName: "dorm",
+		catalogName: "lakeorm",
 		// "default" is Spark's conventional database for
 		// unqualified references. Matches Hive / Iceberg REST default.
 		database: "default",
@@ -58,7 +58,7 @@ func newConfig() *config {
 }
 
 // WithCatalogName sets the Spark catalog identifier the Iceberg
-// catalog is registered as. Default "dorm" — matches what
+// catalog is registered as. Default "lakeorm" — matches what
 // docker-compose and lake-k8s configure. Override to match an
 // existing cluster's catalog registration.
 func WithCatalogName(name string) DialectOption {
@@ -123,7 +123,7 @@ type dialect struct {
 
 func (d *dialect) Name() string { return "iceberg" }
 
-// IndexStrategy translates the dorm tag intent into a physical
+// IndexStrategy translates the lake tag intent into a physical
 // strategy. `indexed` / `mergeKey` default to bucket(cfg.defaultBucketN);
 // column-level overrides win via WithIndexStrategy.
 func (d *dialect) IndexStrategy(intent lakeorm.IndexIntent) lakeorm.IndexStrategy {
@@ -172,8 +172,8 @@ func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, loc types.Location)
 	// carries this, stamped per-Insert at the driver layer. Nullable
 	// so pre-existing tables can gain the column via ALTER TABLE
 	// without a backfill, and so existing rows (untracked batches)
-	// keep NULL. See lakeorm.SystemIngestIDColumn.
-	cols = append(cols, lakeorm.SystemIngestIDColumn+" STRING")
+	// keep NULL. See types.SystemIngestIDColumn.
+	cols = append(cols, types.SystemIngestIDColumn+" STRING")
 
 	partitions := d.partitionClause(schema)
 
@@ -356,9 +356,9 @@ func (d *dialect) PlanQuery(req lakeorm.QueryRequest) (lakeorm.ExecutionPlan, er
 	}, nil
 }
 
-// toBuildOrder converts dorm's OrderSpec to sqlbuild.OrderSpec.
+// toBuildOrder converts lakeorm's OrderSpec to sqlbuild.OrderSpec.
 // Separate types so sqlbuild stays importable without pulling in the
-// wider dorm package.
+// wider lakeorm package.
 func toBuildOrder(in []lakeorm.OrderSpec) []sqlbuild.OrderSpec {
 	if len(in) == 0 {
 		return nil

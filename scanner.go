@@ -60,17 +60,17 @@ func NewScanner() *Scanner {
 func (s *Scanner) ScanRow(row Row, dest any, _ *LakeSchema) error {
 	destValue := reflect.ValueOf(dest)
 	if destValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("dorm: scan dest must be a pointer to struct")
+		return fmt.Errorf("lakeorm: scan dest must be a pointer to struct")
 	}
 	destElem := destValue.Elem()
 	if destElem.Kind() != reflect.Struct {
-		return fmt.Errorf("dorm: scan dest must be a pointer to struct")
+		return fmt.Errorf("lakeorm: scan dest must be a pointer to struct")
 	}
 
 	columns := row.Columns()
 	values := row.Values()
 	if len(columns) != len(values) {
-		return fmt.Errorf("dorm: column/value length mismatch (%d/%d)", len(columns), len(values))
+		return fmt.Errorf("lakeorm: column/value length mismatch (%d/%d)", len(columns), len(values))
 	}
 
 	mappings := s.buildColumnMappings(destElem.Type(), columns)
@@ -82,7 +82,7 @@ func (s *Scanner) ScanRow(row Row, dest any, _ *LakeSchema) error {
 		}
 		field := reflectx.FieldByIndexes(destElem, m.index)
 		if err := assignRowValue(field, values[i]); err != nil {
-			return fmt.Errorf("dorm: assign column %s: %w", col, err)
+			return fmt.Errorf("lakeorm: assign column %s: %w", col, err)
 		}
 	}
 	return nil

@@ -1,4 +1,4 @@
-package migrate
+package goose
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ func TestGenerate_NonDestructiveAddEmitsNoDestructiveComment(t *testing.T) {
 		{Op: OpAddColumn, Table: "users", Column: "tier", Type: "STRING", Nullable: true},
 	}
 	var buf bytes.Buffer
-	err := Generate(&buf, changes, GenerateMeta{
+	err := GenerateGooseMigration(&buf, changes, GooseMigration{
 		Source:      "models.User",
 		Fingerprint: "sha256:abc",
 		DialectName: "iceberg",
@@ -45,7 +45,7 @@ func TestGenerate_DestructiveRenameEmitsComment(t *testing.T) {
 		{Op: OpRenameColumn, Table: "users", OldColumn: "email_address", Column: "email"},
 	}
 	var buf bytes.Buffer
-	if err := Generate(&buf, changes, GenerateMeta{DialectName: "iceberg"}); err != nil {
+	if err := GenerateGooseMigration(&buf, changes, GooseMigration{DialectName: "iceberg"}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	out := buf.String()
@@ -68,7 +68,7 @@ func TestGenerate_MixedDiffNonDestructiveAndDestructive(t *testing.T) {
 		{Op: OpRenameColumn, Table: "users", OldColumn: "email_address", Column: "email"},
 	}
 	var buf bytes.Buffer
-	if err := Generate(&buf, changes, GenerateMeta{DialectName: "iceberg"}); err != nil {
+	if err := GenerateGooseMigration(&buf, changes, GooseMigration{DialectName: "iceberg"}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	out := buf.String()
@@ -88,7 +88,7 @@ func TestGenerate_SkipsCreateTable(t *testing.T) {
 	// Bootstrap creates flow through db.Migrate, not the generator.
 	changes := []Change{{Op: OpCreateTable, Table: "users"}}
 	var buf bytes.Buffer
-	if err := Generate(&buf, changes, GenerateMeta{DialectName: "iceberg"}); err != nil {
+	if err := GenerateGooseMigration(&buf, changes, GooseMigration{DialectName: "iceberg"}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	if strings.Contains(buf.String(), "CREATE TABLE") {

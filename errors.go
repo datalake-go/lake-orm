@@ -98,7 +98,7 @@ type ErrClientStaging struct {
 }
 
 func (e *ErrClientStaging) Error() string {
-	return fmt.Sprintf("dorm: client-side %s failed on %s (backend=%s): %v",
+	return fmt.Sprintf("lakeorm: client-side %s failed on %s (backend=%s): %v",
 		e.Op, e.URI, e.BackendName, e.Cause)
 }
 func (e *ErrClientStaging) Unwrap() error { return e.Cause }
@@ -115,7 +115,7 @@ type ErrDriverRead struct {
 }
 
 func (e *ErrDriverRead) Error() string {
-	return fmt.Sprintf("dorm: driver %s failed to read %s: %v",
+	return fmt.Sprintf("lakeorm: driver %s failed to read %s: %v",
 		e.DriverName, e.StagingURI, e.Cause)
 }
 func (e *ErrDriverRead) Unwrap() error { return e.Cause }
@@ -130,6 +130,6 @@ type ErrURIMismatch struct {
 }
 
 func (e *ErrURIMismatch) Error() string {
-	return fmt.Sprintf("dorm: URI mismatch between client (%s) and driver (%s): %s",
+	return fmt.Sprintf("lakeorm: URI mismatch between client (%s) and driver (%s): %s",
 		e.ClientURI, e.DriverURI, e.Detail)
 }

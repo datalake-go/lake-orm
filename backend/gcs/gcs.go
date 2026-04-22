@@ -18,7 +18,7 @@ import (
 
 // ErrNotImplemented is returned by every operation on the v0 stub.
 // Promoted to a shared sentinel in v1 when the SDK lands.
-var ErrNotImplemented = errors.New("dorm/backend/gcs: v0 stub — bring cloud.google.com/go/storage in a v1 commit")
+var ErrNotImplemented = errors.New("lakeorm/backend/gcs: v0 stub — bring cloud.google.com/go/storage in a v1 commit")
 
 // Backend is the GCS implementation stub.
 type Backend struct {

@@ -86,8 +86,8 @@ func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, loc types.Location)
 	// System-managed ingest_id column: every table lake-orm creates
 	// carries this, stamped per-Insert at the driver layer. Nullable
 	// so pre-existing tables can gain the column via ALTER TABLE
-	// without a backfill. See lakeorm.SystemIngestIDColumn.
-	cols = append(cols, lakeorm.SystemIngestIDColumn+" STRING")
+	// without a backfill. See types.SystemIngestIDColumn.
+	cols = append(cols, types.SystemIngestIDColumn+" STRING")
 	locationClause := ""
 	if loc.URI() != "" {
 		locationClause = fmt.Sprintf(" LOCATION '%s'", loc.URI())
@@ -131,7 +131,7 @@ func goTypeToDelta(t reflect.Type) (string, error) {
 			return "BINARY", nil
 		}
 		// Arrays come back through Spark as JSON strings in v0; real
-		// ARRAY<T> emission lands when the dorm tag grammar gains
+		// ARRAY<T> emission lands when the lake tag grammar gains
 		// element-type hints.
 		return "STRING", nil
 	case reflect.Struct:

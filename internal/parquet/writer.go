@@ -79,7 +79,7 @@ type Uploader interface {
 // RowConverter is the pluggable hook that turns a user's typed row
 // (whatever struct shape the caller has) into the row parquet-go
 // should write against the schema. When the schema was synthesized
-// from dorm tags on a different struct type, the converter projects
+// from lake tags on a different struct type, the converter projects
 // user-struct fields into the synthesized struct. When the schema
 // matches the user's struct directly, the converter is a no-op.
 type RowConverter func(row any) any

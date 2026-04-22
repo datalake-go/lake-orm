@@ -18,7 +18,7 @@ func renderSQL(sql string, args []any) (string, error) {
 	for _, r := range sql {
 		if r == '?' {
 			if n >= len(args) {
-				return "", fmt.Errorf("dorm/spark: too few arguments for SQL: %q", sql)
+				return "", fmt.Errorf("lakeorm/spark: too few arguments for SQL: %q", sql)
 			}
 			b.WriteString(quoteSQL(args[n]))
 			n++
@@ -27,7 +27,7 @@ func renderSQL(sql string, args []any) (string, error) {
 		b.WriteRune(r)
 	}
 	if n != len(args) {
-		return "", fmt.Errorf("dorm/spark: %d unused arguments for SQL: %q", len(args)-n, sql)
+		return "", fmt.Errorf("lakeorm/spark: %d unused arguments for SQL: %q", len(args)-n, sql)
 	}
 	return b.String(), nil
 }

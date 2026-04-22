@@ -1,4 +1,4 @@
-package migrate
+package goose
 
 import (
 	"reflect"
@@ -12,7 +12,7 @@ import (
 // Pure function: no I/O, no driver calls. The caller supplies current
 // (typically obtained via a Dialect-aware DESCRIBE TABLE through the
 // Driver) and target (built from a struct via whatever boundary
-// adapter the host code ships — dorm's is migrate_client.go).
+// adapter the host code ships — lakeorm's is migrate_client.go).
 // Diff is deterministic and sorts nothing — changes are returned in
 // the order: drops, adds in target's field order, then type /
 // nullability changes in target's field order.
@@ -122,7 +122,7 @@ func sameType(a, b reflect.Type) bool {
 	return normalizeType(a) == normalizeType(b)
 }
 
-// normalizeType collapses pointer indirection; the dorm tag parser
+// normalizeType collapses pointer indirection; the lake tag parser
 // records pointer-ness via IsPointer/IsNullable flags, so the
 // underlying element type is what Diff compares.
 func normalizeType(t reflect.Type) reflect.Type {
