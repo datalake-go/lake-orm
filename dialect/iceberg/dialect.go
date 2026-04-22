@@ -172,8 +172,8 @@ func (d *dialect) CreateTableDDL(schema *lakeorm.LakeSchema, loc types.Location)
 	// carries this, stamped per-Insert at the driver layer. Nullable
 	// so pre-existing tables can gain the column via ALTER TABLE
 	// without a backfill, and so existing rows (untracked batches)
-	// keep NULL. See lakeorm.SystemIngestIDColumn.
-	cols = append(cols, lakeorm.SystemIngestIDColumn+" STRING")
+	// keep NULL. See types.SystemIngestIDColumn.
+	cols = append(cols, types.SystemIngestIDColumn+" STRING")
 
 	partitions := d.partitionClause(schema)
 

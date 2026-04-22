@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // AutoBehavior describes auto-populated column content. Client.Insert
@@ -19,19 +21,12 @@ const (
 	AutoUpdateTime
 )
 
-// SystemIngestIDColumn is the reserved name for lake-orm's
-// per-operation ingest_id column. Every table lake-orm creates
-// carries this column, populated with a UUIDv7 per Insert call.
-// User structs must NOT declare it — the column is synthesised
-// at DDL time by each dialect and stamped at write time by the
-// driver layer.
-//
-// Reconciliation queries that want the column on the read side
-// declare a separate result-shape struct with a field tagged
-// `lake:"_ingest_id"`. The root scanner drops unmapped columns
-// for structs that don't, so Query[T] over a T that ignores
-// _ingest_id returns clean typed rows.
-const SystemIngestIDColumn = "_ingest_id"
+// SystemIngestIDColumn re-exports types.SystemIngestIDColumn so
+// callers using the top-level package get a stable name. The
+// authoritative definition lives in the types package because
+// dialects and drivers (which cannot import lakeorm without a
+// cycle) reference it at DDL / write time.
+const SystemIngestIDColumn = types.SystemIngestIDColumn
 
 // PartitionStrategy is the tag-declared partition intent. Dialect
 // implementations translate this into a physical strategy (Iceberg

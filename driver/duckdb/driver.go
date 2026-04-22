@@ -45,6 +45,7 @@ import (
 	"strings"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/types"
 	"github.com/jmoiron/sqlx/reflectx"
 )
 
@@ -166,7 +167,7 @@ func (d *driver) executeDirectIngest(ctx context.Context, plan lakeorm.Execution
 	// System-managed _ingest_id column: appended after user columns
 	// so the INSERT column list mirrors the CREATE TABLE DDL. Value
 	// comes from plan.IngestID (generated in Client.Insert).
-	cols = append(cols, lakeorm.SystemIngestIDColumn)
+	cols = append(cols, types.SystemIngestIDColumn)
 	placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(cols)), ", ")
 	insertSQL := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 		plan.Target, strings.Join(cols, ", "), placeholders)

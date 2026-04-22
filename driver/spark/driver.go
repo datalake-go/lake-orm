@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // driver is the shared Spark Connect driver backing both Remote and
@@ -164,7 +165,7 @@ func (d *driver) executeParquetMerge(ctx context.Context, plan lakeorm.Execution
 			"ON %s "+
 			"WHEN MATCHED THEN UPDATE SET * "+
 			"WHEN NOT MATCHED THEN INSERT *",
-		plan.Target, viewName, lakeorm.SystemIngestIDColumn, plan.IngestID, onClause,
+		plan.Target, viewName, types.SystemIngestIDColumn, plan.IngestID, onClause,
 	)
 
 	f := &parquetIngestFinalizer{
