@@ -1,4 +1,4 @@
-package lakeorm
+package parquet
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 // synthesis doesn't call reflect.TypeOf per field.
 var timeType = reflect.TypeOf(time.Time{})
 
-// ParquetSchema is the bridge between a structs.LakeSchema (the user's
+// Schema is the bridge between a structs.LakeSchema (the user's
 // lake-tagged model) and a parquet schema (what the fast-path writer
 // serializes against). The whole point: users tag their structs with
 // `spark:"..."` once; they do NOT need to also write `parquet:"..."`
@@ -31,7 +31,7 @@ var timeType = reflect.TypeOf(time.Time{})
 // string field so the parquet output matches the target table DDL,
 // which also includes that system-managed column. Convert stamps
 // the per-operation ingest_id onto every row.
-type ParquetSchema struct {
+type Schema struct {
 	lake           *structs.LakeSchema
 	schema         *pq.Schema
 	synthesized    reflect.Type
@@ -44,16 +44,16 @@ type parquetFieldProjection struct {
 	targetIndex int   // flat field index in the synthesized struct
 }
 
-// BuildParquetSchema translates a structs.LakeSchema into a parquet schema +
-// row projector. The returned ParquetSchema is cheap to call; the
+// NewSchema translates a structs.LakeSchema into a parquet schema +
+// row projector. The returned Schema is cheap to call; the
 // reflection work happens once and is reused per Write call.
 //
 // The fast-path writer (internal/parquet) wires this up automatically
 // when Insert routes through object storage — users don't construct
-// ParquetSchema directly.
-func BuildParquetSchema(lake *structs.LakeSchema) (*ParquetSchema, error) {
+// Schema directly.
+func NewSchema(lake *structs.LakeSchema) (*Schema, error) {
 	if lake == nil {
-		return nil, fmt.Errorf("lakeorm: BuildParquetSchema requires a non-nil structs.LakeSchema")
+		return nil, fmt.Errorf("lakeorm: NewSchema requires a non-nil structs.LakeSchema")
 	}
 
 	fields := make([]reflect.StructField, 0, len(lake.Fields)+1)
@@ -93,7 +93,7 @@ func BuildParquetSchema(lake *structs.LakeSchema) (*ParquetSchema, error) {
 	instance := reflect.New(synth).Interface()
 	schema := pq.SchemaOf(instance)
 
-	return &ParquetSchema{
+	return &Schema{
 		lake:           lake,
 		schema:         schema,
 		synthesized:    synth,
@@ -104,7 +104,7 @@ func BuildParquetSchema(lake *structs.LakeSchema) (*ParquetSchema, error) {
 
 // Schema returns the underlying parquet schema. Pass to
 // parquet.NewWriter (or to the internal partition writer).
-func (p *ParquetSchema) Schema() *pq.Schema { return p.schema }
+func (p *Schema) Schema() *pq.Schema { return p.schema }
 
 // ConverterFor returns a RowConverter closure bound to ingestID.
 // Every row the returned converter produces carries the same
@@ -115,7 +115,7 @@ func (p *ParquetSchema) Schema() *pq.Schema { return p.schema }
 // Intended as the RowConverter handed to the internal partition
 // writer — the writer's conversion happens once per row, so the
 // closure captures ingestID without per-row allocation.
-func (p *ParquetSchema) ConverterFor(ingestID string) func(any) any {
+func (p *Schema) ConverterFor(ingestID string) func(any) any {
 	return func(row any) any {
 		source := reflect.ValueOf(row)
 		for source.Kind() == reflect.Ptr {

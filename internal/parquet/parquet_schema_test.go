@@ -1,4 +1,4 @@
-package lakeorm
+package parquet
 
 import (
 	"github.com/datalake-go/lake-orm/structs"
@@ -22,18 +22,18 @@ type pqTestUser struct {
 	Internal  string           `spark:"-"`
 }
 
-// TestBuildParquetSchema_SurfaceShape pins the visible columns the
+// TestNewSchema_SurfaceShape pins the visible columns the
 // schema synthesizer produces. If this test ever fails, the
 // lake→parquet translation is dropping or adding a column that user
 // code doesn't expect.
-func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
+func TestNewSchema_SurfaceShape(t *testing.T) {
 	lake, err := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 	if err != nil {
 		t.Fatalf("structs.ParseSchema: %v", err)
 	}
-	ps, err := BuildParquetSchema(lake)
+	ps, err := NewSchema(lake)
 	if err != nil {
-		t.Fatalf("BuildParquetSchema: %v", err)
+		t.Fatalf("NewSchema: %v", err)
 	}
 
 	// User columns first, then the system-managed _ingest_id column
@@ -58,11 +58,11 @@ func TestBuildParquetSchema_SurfaceShape(t *testing.T) {
 	}
 }
 
-// TestBuildParquetSchema_TimestampTag pins the TIMESTAMP(MICROS)
+// TestNewSchema_TimestampTag pins the TIMESTAMP(MICROS)
 // translation. This is the rule that stopped users having to write
 // `parquet:"...,timestamp(microsecond)"` by hand — if the tag ever
 // stops being emitted, Spark starts rejecting reads again.
-func TestBuildParquetSchema_TimestampTag(t *testing.T) {
+func TestNewSchema_TimestampTag(t *testing.T) {
 	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 
 	for _, f := range lake.Fields {
@@ -82,10 +82,10 @@ func TestBuildParquetSchema_TimestampTag(t *testing.T) {
 	}
 }
 
-// TestBuildParquetSchema_OptionalForNullable pins the `optional`
+// TestNewSchema_OptionalForNullable pins the `optional`
 // translation. parquet-go's default is `required`, which blows up
 // NULL writes.
-func TestBuildParquetSchema_OptionalForNullable(t *testing.T) {
+func TestNewSchema_OptionalForNullable(t *testing.T) {
 	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
 	byName := map[string]structs.LakeField{}
 	for _, f := range lake.Fields {
@@ -103,14 +103,14 @@ func TestBuildParquetSchema_OptionalForNullable(t *testing.T) {
 	}
 }
 
-// TestBuildParquetSchema_ConverterFor_Projects pins that the
+// TestNewSchema_ConverterFor_Projects pins that the
 // converter closure copies user-struct values into the synthesized
 // struct in the same order the schema expects — visible via the
 // synthesized type's field names — and stamps the per-operation
 // ingest_id onto the trailing XIngestID field.
-func TestBuildParquetSchema_ConverterFor_Projects(t *testing.T) {
+func TestNewSchema_ConverterFor_Projects(t *testing.T) {
 	lake, _ := structs.ParseSchema(reflect.TypeOf(pqTestUser{}))
-	ps, _ := BuildParquetSchema(lake)
+	ps, _ := NewSchema(lake)
 
 	when := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	in := &pqTestUser{
@@ -146,20 +146,20 @@ func TestBuildParquetSchema_ConverterFor_Projects(t *testing.T) {
 	}
 }
 
-// TestBuildParquetSchema_NilLakeErrors pins defensive behavior:
+// TestNewSchema_NilLakeErrors pins defensive behavior:
 // passing nil in is a programming error, surfaced as a real error
 // rather than a panic.
-func TestBuildParquetSchema_NilLakeErrors(t *testing.T) {
-	_, err := BuildParquetSchema(nil)
+func TestNewSchema_NilLakeErrors(t *testing.T) {
+	_, err := NewSchema(nil)
 	if err == nil {
-		t.Fatal("BuildParquetSchema(nil) should error")
+		t.Fatal("NewSchema(nil) should error")
 	}
 }
 
 // columnNamesOf returns the ordered column names of a parquet schema,
 // read directly off the compiled schema so the test validates what
 // the writer will emit.
-func columnNamesOf(ps *ParquetSchema) []string {
+func columnNamesOf(ps *Schema) []string {
 	fields := ps.Schema().Fields()
 	out := make([]string, 0, len(fields))
 	for _, f := range fields {

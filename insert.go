@@ -28,7 +28,7 @@ func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *st
 
 	// Synthesize the parquet schema from the user's lake tags. Users
 	// don't declare `parquet:"..."` tags; the lake tag is authoritative.
-	ps, err := BuildParquetSchema(schema)
+	ps, err := parquet.NewSchema(schema)
 	if err != nil {
 		return fmt.Errorf("lakeorm: build parquet schema: %w", err)
 	}
@@ -86,7 +86,7 @@ func (u *backendUploader) Writer(ctx context.Context, key string) (io.WriteClose
 
 // writeRecords unpacks records of any shape (*T, []*T, []T) and hands
 // them to the partition writer as a flat []any slice. The writer's
-// row converter (built from BuildParquetSchema) handles the
+// row converter (built from parquet.NewSchema) handles the
 // per-row projection into the parquet schema's synthesized struct.
 func writeRecords(pw *parquet.PartitionWriter, records any) error {
 	rv := reflect.ValueOf(records)
