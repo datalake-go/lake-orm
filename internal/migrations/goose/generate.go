@@ -1,4 +1,4 @@
-package migrate
+package goose
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// GenerateMeta carries the header comment fields for a generated
+// GooseMigration carries the header comment fields for a generated
 // migration file.
-type GenerateMeta struct {
+type GooseMigration struct {
 	Source      string    // e.g. "models.User" or "cmd/api/models.go"
 	Fingerprint string    // output of lakeorm.SchemaFingerprint for the target struct
 	DialectName string    // "iceberg" | "delta"
@@ -41,7 +41,7 @@ type GenerateMeta struct {
 // OpCreateTable changes are skipped; bootstrap creates go through
 // db.Migrate's CREATE TABLE IF NOT EXISTS path, not through
 // generated ALTER files.
-func Generate(w io.Writer, changes []Change, meta GenerateMeta) error {
+func GenerateGooseMigration(w io.Writer, changes []Change, meta GooseMigration) error {
 	if meta.GeneratedAt.IsZero() {
 		meta.GeneratedAt = time.Now().UTC()
 	}

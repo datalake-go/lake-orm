@@ -1,4 +1,4 @@
-// Package migrate is lakeorm's side of the schema-evolution story:
+// Package goose is lakeorm's side of the schema-evolution story:
 // it computes struct-diffs against a prior target-state (replayed
 // from the most recent migration file's State-JSON header — the
 // Django MigrationLoader pattern), classifies each change as
@@ -11,11 +11,11 @@
 // the repo root for the split.
 //
 // This package deliberately does not import the root lakeorm
-// package; the root imports migrate, and reversing the edge would
-// cycle. Callers build a migrate.Schema at the boundary from
+// package; the root imports goose, and reversing the edge would
+// cycle. Callers build a goose.Schema at the boundary from
 // whatever their host code has — lakeorm does this in migrate.go
-// via a one-way LakeSchema → migrate.Schema adapter.
-package migrate
+// via a one-way LakeSchema → goose.Schema adapter.
+package goose
 
 import "reflect"
 

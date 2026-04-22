@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/datalake-go/lake-orm/internal/migrations/migrate"
+	"github.com/datalake-go/lake-orm/internal/migrations/goose"
 )
 
 // MigrateGenerate writes one goose-format .sql file per struct with
@@ -56,14 +56,14 @@ func (c *client) MigrateGenerate(ctx context.Context, dir string, structs ...any
 		if err != nil {
 			return written, fmt.Errorf("lakeorm.MigrateGenerate: create %s: %w", filename, err)
 		}
-		meta := migrate.GenerateMeta{
+		meta := goose.GooseMigration{
 			Source:      d.schema.GoType.String(),
 			Fingerprint: fingerprint,
 			DialectName: c.dialect.Name(),
 			GeneratedAt: now,
 			TargetState: d.target,
 		}
-		if err := migrate.Generate(f, d.changes, meta); err != nil {
+		if err := goose.GenerateGooseMigration(f, d.changes, meta); err != nil {
 			_ = f.Close()
 			return written, fmt.Errorf("lakeorm.MigrateGenerate: render %s: %w", filename, err)
 		}
@@ -108,8 +108,8 @@ func (c *client) AssertSchema(_ context.Context, structs ...any) error {
 // header so subsequent runs can replay it.
 type localDiff struct {
 	schema  *LakeSchema
-	target  *migrate.Schema
-	changes []migrate.Change
+	target  *goose.Schema
+	changes []goose.Change
 }
 
 // planLocalDiffs resolves every struct to a LakeSchema, reconstructs
@@ -131,15 +131,15 @@ func (c *client) planLocalDiffs(_ context.Context, dir string, structs []any) ([
 		}
 		target := lakeSchemaToMigrateSchema(schema)
 
-		var prior *migrate.Schema
+		var prior *goose.Schema
 		if dir != "" {
-			prior, err = migrate.ReplayLatestState(dir, target.TableName)
+			prior, err = goose.ReplayLatestState(dir, target.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lakeorm.migrate: replay prior state for %s: %w", target.TableName, err)
 			}
 		}
 
-		changes := migrate.Diff(prior, target, c.dialect.Name())
+		changes := goose.Diff(prior, target, c.dialect.Name())
 		out = append(out, localDiff{schema: schema, target: target, changes: changes})
 	}
 	return out, nil
@@ -147,7 +147,7 @@ func (c *client) planLocalDiffs(_ context.Context, dir string, structs []any) ([
 
 // lakeSchemaToMigrateSchema adapts the reflection-heavy LakeSchema
 // (pk/mergeKey indices, partitions, validators, auto-behaviours) to
-// the narrower migrate.Schema the generator actually needs. Lives on
+// the narrower goose.Schema the generator actually needs. Lives on
 // the lakeorm side so the migrate subpackage stays lakeorm-import-
 // free.
 //
@@ -157,7 +157,7 @@ func (c *client) planLocalDiffs(_ context.Context, dir string, structs []any) ([
 // MigrateGenerate run detects the gap and emits
 // ALTER TABLE ... ADD COLUMN _ingest_id STRING. Nullable for backfill
 // safety — old rows stay NULL, new rows get stamped at write time.
-func lakeSchemaToMigrateSchema(s *LakeSchema) *migrate.Schema {
+func lakeSchemaToMigrateSchema(s *LakeSchema) *goose.Schema {
 	if s == nil {
 		return nil
 	}
@@ -169,9 +169,9 @@ func lakeSchemaToMigrateSchema(s *LakeSchema) *migrate.Schema {
 	for _, i := range s.MergeKeys {
 		mk[i] = true
 	}
-	fields := make([]migrate.Field, 0, len(s.Fields)+1)
+	fields := make([]goose.Field, 0, len(s.Fields)+1)
 	for i, f := range s.Fields {
-		fields = append(fields, migrate.Field{
+		fields = append(fields, goose.Field{
 			Column:   f.Column,
 			GoType:   f.Type,
 			Nullable: f.IsNullable,
@@ -180,12 +180,12 @@ func lakeSchemaToMigrateSchema(s *LakeSchema) *migrate.Schema {
 			Ignored:  f.Ignored,
 		})
 	}
-	fields = append(fields, migrate.Field{
+	fields = append(fields, goose.Field{
 		Column:   SystemIngestIDColumn,
 		GoType:   reflect.TypeOf(""),
 		Nullable: true,
 	})
-	return &migrate.Schema{
+	return &goose.Schema{
 		TableName: s.TableName,
 		Fields:    fields,
 	}
