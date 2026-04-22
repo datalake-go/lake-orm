@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/types"
 )
 
 // client is the default Client implementation. Holds the three
@@ -44,11 +44,10 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	// UUIDv7 so the staging prefix is time-sortable and
 	// CleanupStaging can identify orphans by parsing the embedded
 	// ms-precision timestamp.
-	ingestUUID, err := uuid.NewV7()
+	ingestID, err := types.NewIngestID()
 	if err != nil {
 		return fmt.Errorf("lakeorm.Insert: generate ingest_id: %w", err)
 	}
-	ingestID := ingestUUID.String()
 
 	if err := structs.Validate(records); err != nil {
 		return err
@@ -63,7 +62,7 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	plan, err := c.dialect.PlanInsert(WriteRequest{
 		Ctx:            ctx,
 		Schema:         schema,
-		IngestID:       ingestID,
+		IngestID:       ingestID.String(),
 		Records:        records,
 		RecordCount:    n,
 		ApproxRowBytes: approx,
