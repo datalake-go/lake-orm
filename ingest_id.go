@@ -27,6 +27,12 @@ type StagingPrefix struct {
 	IngestID string
 }
 
+// NewStagingPrefix builds a StagingPrefix from its absolute backend
+// URI and the trailing ingest_id path segment.
+func NewStagingPrefix(uri, ingestID string) StagingPrefix {
+	return StagingPrefix{URI: uri, IngestID: ingestID}
+}
+
 // StagingLister is the optional backend extension Client.CleanupStaging
 // relies on. Backends that can enumerate their _staging/ namespace
 // implement this; backends that can't leave it unimplemented and

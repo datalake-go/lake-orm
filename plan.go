@@ -122,6 +122,12 @@ type OrderSpec struct {
 	Desc   bool
 }
 
+// NewOrderSpec builds an OrderSpec for Query / QueryBuilder.
+// desc=true sorts descending; false is ascending.
+func NewOrderSpec(column string, desc bool) OrderSpec {
+	return OrderSpec{Column: column, Desc: desc}
+}
+
 // MergeAction is the Upsert conflict strategy.
 type MergeAction int
 

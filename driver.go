@@ -75,8 +75,20 @@ type MaintenanceOptions struct {
 	ZOrder []string
 }
 
+// NewMaintenanceOptions builds a MaintenanceOptions with the supplied
+// WHERE filter and Z-order column list.
+func NewMaintenanceOptions(filter string, zorder ...string) MaintenanceOptions {
+	return MaintenanceOptions{Filter: filter, ZOrder: zorder}
+}
+
 type VacuumOptions struct {
 	RetentionHours int
+}
+
+// NewVacuumOptions builds a VacuumOptions with the supplied retention
+// window in hours.
+func NewVacuumOptions(retentionHours int) VacuumOptions {
+	return VacuumOptions{RetentionHours: retentionHours}
 }
 
 type TableStats struct {
