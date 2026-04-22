@@ -55,7 +55,7 @@ type Client interface {
 	//
 	// Execution is not this library's job — it belongs to lake-goose
 	// running against the Spark Connect database/sql driver. An
-	// atlas.sum manifest is emitted alongside so downstream tooling
+	// lakeorm.sum manifest is emitted alongside so downstream tooling
 	// can detect post-generation edits.
 	//
 	// Returns the list of generated file paths.

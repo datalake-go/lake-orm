@@ -35,11 +35,11 @@ Schema evolution for lakehouse tables, split across three roles:
                                           │     -- +goose Up                │
                                           │     -- DESTRUCTIVE: reason      │
                                           │     ALTER TABLE ...             │
-                                          │ 5. Update atlas.sum manifest    │
+                                          │ 5. Update lakeorm.sum manifest    │
                                           └───────────────────┬─────────────┘
                                                               │
                                                       migrations/
-                                                      ├── atlas.sum
+                                                      ├── lakeorm.sum
                                                       ├── 20260419153012_users.sql
                                                       └── 20260420091523_orders.sql
                                                               │
@@ -117,9 +117,9 @@ The JSON is the **target state** — what the table looks like after every Up st
 
 No DESCRIBE TABLE round-trip required; no separate state database; no out-of-band state that can drift from the files.
 
-## atlas.sum integrity
+## lakeorm.sum integrity
 
-Every `MigrateGenerate` call rewrites an `atlas.sum` manifest at the migrations-dir root (same format as Ariga's [Atlas](https://atlasgo.io/concepts/migration-directory-integrity)):
+Every `MigrateGenerate` call rewrites a `lakeorm.sum` manifest at the migrations-dir root:
 
 ```
 h1:<base64(sha256(body))>
@@ -127,7 +127,7 @@ h1:<base64(sha256(body))>
 20260420091523_orders.sql h1:<base64(sha256(file))>
 ```
 
-Any post-generation edit to a `.sql` file changes its hash → changes the directory hash on line 1. Downstream tooling that verifies `atlas.sum` (Atlas itself, custom CI jobs, a future `lakeorm migrate --check` command) can surface drift cleanly.
+Line 1's hash covers every subsequent line. Any post-generation edit to a `.sql` file changes its hash → changes the top-line hash. A future `lakeorm migrate --check` command or a custom CI job can verify the manifest and surface drift cleanly. Writing the manifest is lake-orm's job; verifying it is a reviewer / CI concern, not a runtime gate.
 
 ## Destructive operations
 
@@ -156,7 +156,7 @@ The reviewer decides. There is no ack slug, no `-- migrate:ack` contract, no gat
 
 ## What's not here (v0)
 
-- **`lakeorm migrate --check`** (CI drift detection). The pieces are in place — atlas.sum plus the State-JSON header — but the CLI wrapper that runs the diff and exits non-zero on drift is v1.
+- **`lakeorm migrate --check`** (CI drift detection). The pieces are in place — lakeorm.sum plus the State-JSON header — but the CLI wrapper that runs the diff and exits non-zero on drift is v1.
 - **Catalog DESCRIBE cross-check**. v0 trusts the State-JSON header as the source of truth for prior state. v1 adds a DESCRIBE TABLE path through the driver and warns when file-state and catalog-state disagree.
 - **Squashing / collapsing**. Django has `squashmigrations`; we don't yet. Generated files accumulate chronologically. For long-running projects, a squash pass is v1.
 - **Execution from lakeorm.Client**. `MigrateStatus`, `MigratePlan`, `MigrateApply`, `DamVersion` were removed — execution is lake-goose's job, not lakeorm's.
@@ -167,4 +167,3 @@ The reviewer decides. There is no ack slug, no `-- migrate:ack` contract, no gat
 - [`spark-connect-go`](https://github.com/datalake-go/spark-connect-go) — the `database/sql` driver lake-goose executes against.
 - [pressly/goose](https://github.com/pressly/goose) — upstream goose docs; every non-dialect behaviour carries over.
 - [Django migrations](https://docs.djangoproject.com/en/5.0/topics/migrations/) — the `makemigrations` mental model this design adopts.
-- [Ariga Atlas](https://atlasgo.io/concepts/migration-directory-integrity) — `atlas.sum` spec.

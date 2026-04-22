@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-// atlas.sum manifest.
+// lakeorm.sum manifest.
 //
-// Every MigrateGenerate call rewrites an atlas.sum file at the
-// migrations-dir root. The format matches Ariga's Atlas:
+// Every MigrateGenerate call rewrites a lakeorm.sum file at the
+// migrations-dir root. The format is:
 //
 //	h1:<base64(sha256(body))>
 //	20260419153012_users.sql h1:<base64(sha256(file))>
@@ -22,15 +22,22 @@ import (
 //
 // Line 1's hash covers every subsequent line. Any post-generation
 // edit — renaming a file, editing a file, reordering lines —
-// invalidates the top-line hash, and downstream tooling (Atlas
-// itself, custom CI jobs) surfaces the drift. lakeorm writes the
-// manifest but doesn't enforce it; verification is a reviewer /
-// CI concern.
+// invalidates the top-line hash, so downstream tooling (a future
+// `lakeorm migrate --check`, custom CI jobs) can detect drift
+// with a single shell one-liner.
+//
+// lakeorm writes the manifest; verification is a reviewer / CI
+// concern, not a runtime gate. The file on disk is the contract
+// the reviewer signed off on.
 
-// WriteAtlasSum scans dir for .sql files, computes each file's
-// sha256, and writes the atlas.sum manifest. Called from the
-// MigrateGenerate flow after every per-table file is written.
-func WriteAtlasSum(dir string) error {
+// ManifestFilename is the name every generated manifest uses.
+// Consumers that verify the manifest locate it by this name.
+const ManifestFilename = "lakeorm.sum"
+
+// WriteManifest scans dir for .sql files, computes each file's
+// sha256, and writes lakeorm.sum. Called from the MigrateGenerate
+// flow after every per-table file is written.
+func WriteManifest(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -72,5 +79,5 @@ func WriteAtlasSum(dir string) error {
 	fmt.Fprintf(&out, "h1:%s\n", base64.StdEncoding.EncodeToString(dirHash[:]))
 	out.WriteString(body.String())
 
-	return os.WriteFile(filepath.Join(dir, "atlas.sum"), []byte(out.String()), 0o644)
+	return os.WriteFile(filepath.Join(dir, ManifestFilename), []byte(out.String()), 0o644)
 }

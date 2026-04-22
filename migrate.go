@@ -13,7 +13,7 @@ import (
 )
 
 // MigrateGenerate writes one goose-format .sql file per struct with
-// pending changes into dir, plus an atlas.sum manifest at the dir
+// pending changes into dir, plus a lakeorm.sum manifest at the dir
 // root. Does not execute the migrations — that's lake-goose's job
 // against the Spark Connect database/sql driver.
 //
@@ -23,10 +23,11 @@ import (
 // PR diff and decide; there is no machine-enforced acknowledgement
 // gate — the file on disk is the contract the reviewer signed off on.
 //
-// atlas.sum (Atlas-compatible format) is overwritten on every call:
-// line 1 is `h1:<sha256 of remaining lines>`, each subsequent line is
-// `<filename> h1:<sha256 of file contents>`. Downstream tooling that
-// understands atlas.sum can detect post-generation edits.
+// lakeorm.sum is overwritten on every call: line 1 is
+// `h1:<sha256 of remaining lines>`, each subsequent line is
+// `<filename> h1:<sha256 of file contents>`. CI / reviewers that
+// verify the manifest detect post-generation edits with a single
+// shell one-liner.
 func (c *client) MigrateGenerate(ctx context.Context, dir string, models ...any) ([]string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("lakeorm.MigrateGenerate: mkdir %s: %w", dir, err)
@@ -69,8 +70,8 @@ func (c *client) MigrateGenerate(ctx context.Context, dir string, models ...any)
 		written = append(written, filename)
 	}
 
-	if err := migrations.WriteAtlasSum(dir); err != nil {
-		return written, fmt.Errorf("lakeorm.MigrateGenerate: atlas.sum: %w", err)
+	if err := migrations.WriteManifest(dir); err != nil {
+		return written, fmt.Errorf("lakeorm.MigrateGenerate: lakeorm.sum: %w", err)
 	}
 
 	return written, nil
