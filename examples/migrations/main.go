@@ -35,9 +35,9 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -75,7 +75,7 @@ func main() {
 	// spark.Remote accepts a URL that is never dialled until the
 	// first Driver.Execute, so the memory-backed backend + unreachable
 	// host is a perfectly valid authoring-only setup.
-	store := backend.Memory("migrations-example")
+	store := backends.Memory("migrations-example")
 	db, err := lakeorm.Open(
 		spark.Remote("sc://unused:15002"),
 		iceberg.Dialect(),

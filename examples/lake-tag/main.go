@@ -34,9 +34,9 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -77,9 +77,9 @@ func main() {
 		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	)
 
-	store, err := backend.S3(s3DSN)
+	store, err := backends.S3(s3DSN)
 	if err != nil {
-		log.Fatalf("backend.S3: %v", err)
+		log.Fatalf("backends.S3: %v", err)
 	}
 	db, err := lakeorm.Open(spark.Remote(sparkURI), iceberg.Dialect(), store)
 	if err != nil {

@@ -26,9 +26,9 @@ import (
 	_ "github.com/marcboeker/go-duckdb/v2"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	duckdbdialect "github.com/datalake-go/lake-orm/dialect/duckdb"
-	duckdbdriver "github.com/datalake-go/lake-orm/driver/duckdb"
+	"github.com/datalake-go/lake-orm/backends"
+	duckdbdialect "github.com/datalake-go/lake-orm/dialects/duckdb"
+	duckdbdriver "github.com/datalake-go/lake-orm/drivers/duckdb"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -55,7 +55,7 @@ func main() {
 
 	// In-memory object-storage backend. Keeps the whole runtime on
 	// one process with no filesystem writes.
-	store := backend.Memory("duckdb-example")
+	store := backends.Memory("duckdb-example")
 
 	client, err := lakeorm.Open(
 		duckdbdriver.Driver(db),

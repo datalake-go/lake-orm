@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )

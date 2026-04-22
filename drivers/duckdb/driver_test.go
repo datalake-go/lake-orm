@@ -6,9 +6,9 @@ import (
 	"time"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	ddialect "github.com/datalake-go/lake-orm/dialect/duckdb"
-	ddriver "github.com/datalake-go/lake-orm/driver/duckdb"
+	"github.com/datalake-go/lake-orm/backends"
+	ddialect "github.com/datalake-go/lake-orm/dialects/duckdb"
+	ddriver "github.com/datalake-go/lake-orm/drivers/duckdb"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -26,7 +26,7 @@ type user struct {
 func openEmbedded(t *testing.T) lakeorm.Client {
 	t.Helper()
 	db := testutils.DuckDB(t)
-	store := backend.Memory("duckdb-driver-test")
+	store := backends.Memory("duckdb-driver-test")
 	client, err := lakeorm.Open(ddriver.Driver(db), ddialect.Dialect(), store)
 	if err != nil {
 		t.Fatalf("lakeorm.Open: %v", err)

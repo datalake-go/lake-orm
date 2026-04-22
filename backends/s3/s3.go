@@ -38,9 +38,9 @@ type Backend struct {
 // New constructs an S3 backend from a DSN. See the package doc for the
 // grammar; common forms:
 //
-//	backend.S3("s3://my-bucket/lake")
-//	backend.S3("s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm")
-//	backend.S3("s3://my-bucket/lake?endpoint=https://<acct>.r2.cloudflarestorage.com&path_style=true")
+//	backends.S3("s3://my-bucket/lake")
+//	backends.S3("s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm")
+//	backends.S3("s3://my-bucket/lake?endpoint=https://<acct>.r2.cloudflarestorage.com&path_style=true")
 func New(dsn string) (*Backend, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {

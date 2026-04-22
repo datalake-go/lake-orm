@@ -87,7 +87,7 @@ func NewMinIO(t *testing.T) *MinIOResult {
 }
 
 // DSN renders the MinIO bundle as a DORM S3 DSN pointing at `bucket`.
-// Ready to pass to backend.S3(...).
+// Ready to pass to backends.S3(...).
 func (m *MinIOResult) DSN(bucket, prefix string) string {
 	return fmt.Sprintf(
 		"s3://%s/%s?endpoint=%s&path_style=true&access_key=%s&secret_key=%s",

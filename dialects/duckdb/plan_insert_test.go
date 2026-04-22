@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/dialect/duckdb"
+	"github.com/datalake-go/lake-orm/dialects/duckdb"
 	"github.com/datalake-go/lake-orm/types"
 )
 

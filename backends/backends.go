@@ -1,20 +1,20 @@
-// Package backend exposes the public constructors for every Backend
+// Package backends exposes the public constructors for every Backend
 // implementation in a single, ergonomic surface. Each concrete backend
 // lives in its own sub-package (s3, gcs, file, memory) and owns its
 // SDK dependency directly; this package re-exports the constructors
-// so callers write `backend.S3(...)` rather than `s3.New(...)`.
+// so callers write `backends.S3(...)` rather than `s3.New(...)`.
 //
 // The sub-packages remain importable directly when callers want to
 // reach backend-specific knobs (e.g. S3 multipart tuning) without
 // growing this re-export surface.
-package backend
+package backends
 
 import (
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend/file"
-	"github.com/datalake-go/lake-orm/backend/gcs"
-	"github.com/datalake-go/lake-orm/backend/memory"
-	"github.com/datalake-go/lake-orm/backend/s3"
+	"github.com/datalake-go/lake-orm/backends/file"
+	"github.com/datalake-go/lake-orm/backends/gcs"
+	"github.com/datalake-go/lake-orm/backends/memory"
+	"github.com/datalake-go/lake-orm/backends/s3"
 )
 
 // S3 constructs an S3-compatible Backend from a DSN. See backend/s3

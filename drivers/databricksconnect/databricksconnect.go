@@ -37,7 +37,7 @@ import (
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 )
 
 // Driver returns a lakeorm.Driver that connects to a Databricks

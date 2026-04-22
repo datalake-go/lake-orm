@@ -33,9 +33,9 @@ import (
 	dbsqlm2m "github.com/databricks/databricks-sql-go/auth/oauth/m2m"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/delta"
-	"github.com/datalake-go/lake-orm/driver/databricks"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/delta"
+	"github.com/datalake-go/lake-orm/drivers/databricks"
 )
 
 // User — write-side entity. The same spark:"..." tag drives the
@@ -89,9 +89,9 @@ func main() {
 	drv := databricks.Driver(db)
 
 	// Delta is the native Databricks table format.
-	store, err := backend.S3(os.Getenv("WAREHOUSE_URI"))
+	store, err := backends.S3(os.Getenv("WAREHOUSE_URI"))
 	if err != nil {
-		log.Fatalf("backend.S3: %v", err)
+		log.Fatalf("backends.S3: %v", err)
 	}
 	client, err := lakeorm.Open(drv, delta.Dialect(), store)
 	if err != nil {

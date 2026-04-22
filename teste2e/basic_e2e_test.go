@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -87,9 +87,9 @@ func openClientForE2E(t *testing.T) lakeorm.Client {
 		t.Skip("teste2e requires DORM_SPARK_URI and DORM_S3_DSN — run `make docker-up` and export the printed endpoints, or wait for the dorm-spark-connect testcontainer image to land")
 	}
 
-	store, err := backend.S3(s3DSN)
+	store, err := backends.S3(s3DSN)
 	if err != nil {
-		t.Fatalf("backend.S3(%q): %v", s3DSN, err)
+		t.Fatalf("backends.S3(%q): %v", s3DSN, err)
 	}
 	db, err := lakeorm.Open(
 		spark.Remote(sparkURI),

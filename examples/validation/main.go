@@ -36,9 +36,9 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/backend"
-	"github.com/datalake-go/lake-orm/dialect/iceberg"
-	"github.com/datalake-go/lake-orm/driver/spark"
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers/spark"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -67,12 +67,12 @@ func init() {
 func main() {
 	ctx := context.Background()
 
-	store, err := backend.S3(envOr(
+	store, err := backends.S3(envOr(
 		"LAKEORM_S3_DSN",
 		"s3://lakeorm-local/lake?endpoint=http://localhost:8333&path_style=true&access_key=lakeorm&secret_key=lakeorm",
 	))
 	if err != nil {
-		log.Fatalf("backend.S3: %v", err)
+		log.Fatalf("backends.S3: %v", err)
 	}
 	db, err := lakeorm.Open(
 		spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")),

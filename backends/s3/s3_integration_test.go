@@ -8,7 +8,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/datalake-go/lake-orm/backend/s3"
+	"github.com/datalake-go/lake-orm/backends/s3"
 	"github.com/datalake-go/lake-orm/testutils"
 )
 
