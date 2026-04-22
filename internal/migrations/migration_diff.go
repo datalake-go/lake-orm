@@ -1,4 +1,4 @@
-package goose
+package migrations
 
 import (
 	"reflect"
@@ -20,7 +20,7 @@ import (
 // formatName selects type rendering ("iceberg" or "delta"); the
 // difference is cosmetic in v0 (both speak Spark SQL) but kept for
 // forward-compatibility with dialect-specific extensions.
-func Diff(current, target *Schema, formatName string) []Change {
+func ComputeDiff(current, target *Schema, formatName string) []Change {
 	if target == nil {
 		return nil
 	}

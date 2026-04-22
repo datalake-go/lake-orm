@@ -1,37 +1,41 @@
-package lakeorm
+package migrations
 
 import (
-	"github.com/datalake-go/lake-orm/structs"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/datalake-go/lake-orm/structs"
 )
 
-// SchemaFingerprint returns a stable SHA-256 over the expected
-// structs.LakeSchema for v (or reflect.Type(v) if v is a reflect.Type).
-// The fingerprint is:
+// Fingerprint is a stable SHA-256 over the expected structs.LakeSchema
+// for a tagged Go type. It's what every generated migration file
+// carries in the State-JSON header so lakeorm can tell, on the next
+// MigrateGenerate run, whether the current struct matches the prior
+// state or has drifted — and only emit a new migration when it has.
 //
-//   - deterministic across process invocations
-//   - insensitive to field declaration order within a struct (so
-//     struct refactors that only reorder fields don't invalidate
-//     previously-applied migrations)
-//   - sensitive to column names, SQL-level types (reflect.Kind
-//     plus the time.Time special case), nullability, pk/mergeKey
-//     membership, and the table name
+// Idempotency is the whole point: re-running MigrateGenerate against
+// an unchanged struct must be a no-op, and it is because the
+// fingerprint comparison short-circuits before any .sql file gets
+// written.
 //
-// Client.AssertSchema hashes the compiled expectation and compares
-// against the catalog's runtime fingerprint; a mismatch surfaces as
-// a startup error rather than a silent drift.
-func SchemaFingerprint(v any) (string, error) {
+// Properties:
+//
+//   - deterministic across process invocations (sorted canonical form)
+//   - insensitive to Go-field declaration order (a pure reorder does
+//     not force a new migration)
+//   - sensitive to column names, SQL-level types, nullability,
+//     pk/mergeKey membership, and the resolved table name
+func Fingerprint(v any) (string, error) {
 	var t reflect.Type
 	switch vv := v.(type) {
 	case reflect.Type:
 		t = vv
 	case nil:
-		return "", fmt.Errorf("lakeorm.SchemaFingerprint: nil value")
+		return "", fmt.Errorf("migrations.Fingerprint: nil value")
 	default:
 		t = reflect.TypeOf(v)
 	}
@@ -42,11 +46,12 @@ func SchemaFingerprint(v any) (string, error) {
 	return fingerprintSchema(schema), nil
 }
 
+// fingerprintSchema is Fingerprint's pure-function core: no
+// reflect.TypeOf dispatch, just the canonical serialisation + hash.
 func fingerprintSchema(s *structs.LakeSchema) string {
 	// Canonical form: table name + sorted (column, type, nullable,
 	// pk, mergeKey) tuples joined by \n. Field index is NOT hashed
-	// — a reordering of struct fields should not force a new
-	// migration on its own.
+	// so a reorder of struct fields does not force a new migration.
 	pkCols := map[string]bool{}
 	for _, i := range s.PrimaryKeys {
 		pkCols[s.Fields[i].Column] = true

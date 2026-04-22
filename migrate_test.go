@@ -141,18 +141,3 @@ func TestMigrateGenerate_LegacyStateTriggersIngestIDAdd(t *testing.T) {
 	}
 }
 
-func TestSlugifyTable(t *testing.T) {
-	cases := map[string]string{
-		"users":             "users",
-		"my.db.users":       "my_db_users",
-		"Weird Table Name!": "weird_table_name",
-		"":                  "",
-		"___":               "",
-	}
-	for in, want := range cases {
-		if got := slugifyTable(in); got != want {
-			t.Errorf("slugifyTable(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-

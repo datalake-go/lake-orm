@@ -1,4 +1,4 @@
-package goose
+package migrations
 
 import (
 	"reflect"
@@ -25,7 +25,7 @@ func TestDiff_NilCurrent_ProducesCreateTable(t *testing.T) {
 		col("id", stringTy, false),
 		col("email", stringTy, false),
 	)
-	changes := Diff(nil, target, "iceberg")
+	changes := ComputeDiff(nil, target, "iceberg")
 	if len(changes) != 1 {
 		t.Fatalf("len(changes) = %d, want 1; got %+v", len(changes), changes)
 	}
@@ -44,7 +44,7 @@ func TestDiff_AddColumn(t *testing.T) {
 		col("email", stringTy, false),
 		col("tier", stringTy, true),
 	)
-	changes := Diff(current, target, "iceberg")
+	changes := ComputeDiff(current, target, "iceberg")
 	if len(changes) != 1 {
 		t.Fatalf("expected 1 change, got %d: %+v", len(changes), changes)
 	}
@@ -62,7 +62,7 @@ func TestDiff_DropColumn(t *testing.T) {
 	target := schemaOf("users",
 		col("id", stringTy, false),
 	)
-	changes := Diff(current, target, "iceberg")
+	changes := ComputeDiff(current, target, "iceberg")
 	if len(changes) != 1 || changes[0].Op != OpDropColumn || changes[0].Column != "email" {
 		t.Fatalf("expected 1 drop on 'email', got %+v", changes)
 	}
@@ -77,7 +77,7 @@ func TestDiff_WidenType(t *testing.T) {
 		col("id", stringTy, false),
 		col("n", int64Ty, false),
 	)
-	changes := Diff(current, target, "iceberg")
+	changes := ComputeDiff(current, target, "iceberg")
 	if len(changes) != 1 {
 		t.Fatalf("expected 1 change, got %+v", changes)
 	}
@@ -95,7 +95,7 @@ func TestDiff_NarrowType(t *testing.T) {
 		col("id", stringTy, false),
 		col("n", int32Ty, false),
 	)
-	changes := Diff(current, target, "iceberg")
+	changes := ComputeDiff(current, target, "iceberg")
 	if len(changes) != 1 || changes[0].Op != OpNarrowType {
 		t.Fatalf("expected OpNarrowType, got %+v", changes)
 	}
@@ -106,7 +106,7 @@ func TestDiff_NoChanges_ReturnsEmpty(t *testing.T) {
 		col("id", stringTy, false),
 		col("email", stringTy, false),
 	)
-	if changes := Diff(s, s, "iceberg"); len(changes) != 0 {
+	if changes := ComputeDiff(s, s, "iceberg"); len(changes) != 0 {
 		t.Errorf("expected empty diff, got %+v", changes)
 	}
 }

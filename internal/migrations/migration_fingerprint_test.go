@@ -1,4 +1,4 @@
-package lakeorm
+package migrations
 
 import (
 	"strings"
@@ -21,12 +21,12 @@ type fpUserReordered struct {
 	ID        types.SortableID `spark:"id,pk"`
 }
 
-func TestSchemaFingerprint_StableAcrossReorder(t *testing.T) {
-	a, err := SchemaFingerprint(&fpUser{})
+func TestFingerprint_StableAcrossReorder(t *testing.T) {
+	a, err := Fingerprint(&fpUser{})
 	if err != nil {
 		t.Fatalf("fpUser: %v", err)
 	}
-	b, err := SchemaFingerprint(&fpUserReordered{})
+	b, err := Fingerprint(&fpUserReordered{})
 	if err != nil {
 		t.Fatalf("fpUserReordered: %v", err)
 	}
@@ -59,12 +59,12 @@ type fpUserTableB struct {
 
 func (fpUserTableB) TableName() string { return "the_users" }
 
-func TestSchemaFingerprint_SameTableSameColumnsDifferentOrder(t *testing.T) {
-	a, err := SchemaFingerprint(&fpUserTableA{})
+func TestFingerprint_SameTableSameColumnsDifferentOrder(t *testing.T) {
+	a, err := Fingerprint(&fpUserTableA{})
 	if err != nil {
 		t.Fatalf("A: %v", err)
 	}
-	b, err := SchemaFingerprint(&fpUserTableB{})
+	b, err := Fingerprint(&fpUserTableB{})
 	if err != nil {
 		t.Fatalf("B: %v", err)
 	}
@@ -86,16 +86,16 @@ type fpAdditionAfter struct {
 
 func (fpAdditionAfter) TableName() string { return "t1" }
 
-func TestSchemaFingerprint_SensitiveToColumnAddition(t *testing.T) {
-	a, _ := SchemaFingerprint(&fpAdditionBefore{})
-	b, _ := SchemaFingerprint(&fpAdditionAfter{})
+func TestFingerprint_SensitiveToColumnAddition(t *testing.T) {
+	a, _ := Fingerprint(&fpAdditionBefore{})
+	b, _ := Fingerprint(&fpAdditionAfter{})
 	if a == b {
 		t.Errorf("column addition should change fingerprint; both returned %s", a)
 	}
 }
 
-func TestSchemaFingerprint_FormatPrefixed(t *testing.T) {
-	fp, err := SchemaFingerprint(&fpUser{})
+func TestFingerprint_FormatPrefixed(t *testing.T) {
+	fp, err := Fingerprint(&fpUser{})
 	if err != nil {
 		t.Fatalf("fingerprint: %v", err)
 	}
@@ -107,8 +107,8 @@ func TestSchemaFingerprint_FormatPrefixed(t *testing.T) {
 	}
 }
 
-func TestSchemaFingerprint_NilError(t *testing.T) {
-	if _, err := SchemaFingerprint(nil); err == nil {
+func TestFingerprint_NilError(t *testing.T) {
+	if _, err := Fingerprint(nil); err == nil {
 		t.Errorf("expected error on nil input")
 	}
 }

@@ -1,4 +1,4 @@
-package goose
+package migrations
 
 import (
 	"strings"
@@ -26,7 +26,7 @@ func TestClassify_TableDriven(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := Classify(c.change, "iceberg")
+			got := ClassifyOp(c.change, "iceberg")
 			if got.Destructive != c.wantDestructive {
 				t.Errorf("Destructive = %v, want %v (reason: %s)", got.Destructive, c.wantDestructive, got.Reason)
 			}

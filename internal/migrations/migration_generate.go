@@ -1,4 +1,4 @@
-package goose
+package migrations
 
 import (
 	"fmt"
@@ -82,7 +82,7 @@ func GenerateGooseMigration(w io.Writer, changes []Change, meta GooseMigration) 
 		if c.Op == OpCreateTable {
 			continue
 		}
-		v := Classify(c, meta.DialectName)
+		v := ClassifyOp(c, meta.DialectName)
 		if v.Destructive {
 			fmt.Fprintf(w, "-- DESTRUCTIVE: %s\n", v.Reason)
 		}

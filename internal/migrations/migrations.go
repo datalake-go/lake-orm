@@ -1,21 +1,24 @@
-// Package goose is lakeorm's side of the schema-evolution story:
-// it computes struct-diffs against a prior target-state (replayed
-// from the most recent migration file's State-JSON header — the
-// Django MigrationLoader pattern), classifies each change as
-// destructive or not per the target dialect's rule table, and
-// emits goose-format .sql files.
+// Package migrations is lakeorm's authoring side of schema
+// evolution. Given a tagged Go struct and the State-JSON header
+// of the most-recent migration file for the same table, it
+// computes the diff, classifies each change as destructive or
+// safe per the dialect rule table (see MIGRATIONS.md), and emits
+// one goose-format .sql file per changed table with
+// `-- DESTRUCTIVE: <reason>` comments on anything a reviewer
+// should notice in the PR diff.
 //
-// Execution is not this package's concern — the .sql files run
-// through lake-goose's `iceberg` or `delta` dialect against any
-// database/sql driver that speaks Spark SQL. See MIGRATIONS.md at
-// the repo root for the split.
+// Execution is NOT this package's concern — the .sql files run
+// through lake-goose against the Spark Connect database/sql
+// driver. This package writes files; lake-goose runs them.
 //
-// This package deliberately does not import the root lakeorm
-// package; the root imports goose, and reversing the edge would
-// cycle. Callers build a goose.Schema at the boundary from
-// whatever their host code has — lakeorm does this in migrate.go
-// via a one-way LakeSchema → goose.Schema adapter.
-package goose
+// The State-JSON header carries the target table state after
+// every Up statement in that file has applied — Django's
+// MigrationLoader pattern. Regeneration replays the most-recent
+// file's State-JSON, compares it to the current Go struct via
+// a Fingerprint, and only emits a new migration when the
+// fingerprint changed. That is what makes MigrateGenerate
+// idempotent.
+package migrations
 
 import "reflect"
 
@@ -116,7 +119,7 @@ type Verdict struct {
 //
 // Unknown ops classify as destructive-with-reason so the reviewer
 // sees an unambiguous signal rather than silent pass-through.
-func Classify(c Change, _ string) Verdict {
+func ClassifyOp(c Change, _ string) Verdict {
 	switch c.Op {
 	case OpAddColumn:
 		if !c.Nullable {
