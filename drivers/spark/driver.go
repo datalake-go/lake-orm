@@ -25,20 +25,20 @@ import (
 // Session-level confs (WithSessionConfs) are applied inside the pool
 // factory, not held on driver, so they survive pool refreshes and
 // apply to every newly-created session identically.
-type driver struct {
+type Driver struct {
 	name   string
 	logger zerolog.Logger
 	pool   *SessionPool
 }
 
 // Name implements lakeorm.Driver.
-func (d *driver) Name() string { return d.name }
+func (d *Driver) Name() string { return d.name }
 
 // Close implements lakeorm.Driver. Stops the session pool.
-func (d *driver) Close() error { return d.pool.Close() }
+func (d *Driver) Close() error { return d.pool.Close() }
 
 // Execute implements lakeorm.Driver. Dispatches by plan kind.
-func (d *driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
 	switch plan.Kind {
 	case lakeorm.KindSQL, lakeorm.KindDDL:
 		return d.executeSQL(ctx, plan)
@@ -53,7 +53,7 @@ func (d *driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeo
 	}
 }
 
-func (d *driver) executeSQL(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeSQL(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
 		return lakeorm.Result{}, nopFinalizer{}, err
@@ -74,7 +74,7 @@ func (d *driver) executeSQL(ctx context.Context, plan lakeorm.ExecutionPlan) (la
 // implementation constructs an Arrow record batch from plan.Rows and
 // calls spark.CreateDataFrameFromArrow + df.Write().SaveAsTable. Wired
 // up in the write-path milestone.
-func (d *driver) executeDirectIngest(_ context.Context, _ lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeDirectIngest(_ context.Context, _ lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
 	return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: direct ingest not yet implemented (v0 scaffold)")
 }
 
@@ -89,7 +89,7 @@ func (d *driver) executeDirectIngest(_ context.Context, _ lakeorm.ExecutionPlan)
 // view path goes through the standard DataSourceV2 read, which
 // Iceberg's extensions leave alone. See UNSUPPORTED_DATASOURCE_FOR_
 // DIRECT_QUERY.
-func (d *driver) executeParquetIngest(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeParquetIngest(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
 		return lakeorm.Result{}, nopFinalizer{}, err
@@ -137,7 +137,7 @@ func (d *driver) executeParquetIngest(ctx context.Context, plan lakeorm.Executio
 // concurrent MERGEs would see each other's parquet parts in the
 // staging directory (if the caller ever shared staging roots) and
 // merge them indiscriminately.
-func (d *driver) executeParquetMerge(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeParquetMerge(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
 	if len(plan.Schema.MergeKeys) == 0 {
 		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: parquet-merge requires schema.MergeKeys")
 	}
@@ -204,7 +204,7 @@ func sanitizeIdent(s string) string {
 // ExecuteStreaming implements lakeorm.Driver. Produces a pull-based row
 // stream backed by the Spark Connect client's StreamRows primitive
 // (SPARK-52780) — constant memory, natural backpressure.
-func (d *driver) ExecuteStreaming(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.RowStream, error) {
+func (d *Driver) ExecuteStreaming(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.RowStream, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func (d *driver) ExecuteStreaming(ctx context.Context, plan lakeorm.ExecutionPla
 
 // DataFrame implements lakeorm.Driver. The escape hatch — returns a
 // DataFrame the caller can chain Spark operations on.
-func (d *driver) DataFrame(ctx context.Context, sql string, args ...any) (lakeorm.DataFrame, error) {
+func (d *Driver) DataFrame(ctx context.Context, sql string, args ...any) (lakeorm.DataFrame, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ func (d *driver) DataFrame(ctx context.Context, sql string, args ...any) (lakeor
 
 // Exec implements lakeorm.Driver.Exec — fire-and-forget SQL for DDL or
 // one-off DML. Does not go through Dialect.
-func (d *driver) Exec(ctx context.Context, sql string, args ...any) (lakeorm.ExecResult, error) {
+func (d *Driver) Exec(ctx context.Context, sql string, args ...any) (lakeorm.ExecResult, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
 		return lakeorm.ExecResult{}, err
@@ -289,7 +289,7 @@ func (nopFinalizer) Abort(context.Context) error  { return nil }
 // the target table. Abort drops the view (if created) and cleans up
 // staging instead.
 type parquetIngestFinalizer struct {
-	driver    *driver
+	driver    *Driver
 	session   scsql.SparkSession
 	viewName  string
 	viewSQL   string

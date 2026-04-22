@@ -6,8 +6,6 @@ import (
 
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
 	"github.com/rs/zerolog"
-
-	"github.com/datalake-go/lake-orm"
 )
 
 // RemoteOption tunes a Remote driver. Functional so the public surface
@@ -63,8 +61,23 @@ func WithSessionConfs(confs map[string]string) RemoteOption {
 // endpoint (no OAuth, no cluster-ID header). Use for self-hosted
 // Spark, EMR, Glue, and the lake-k8s local stack.
 //
-//	spark.Remote("sc://spark.internal:15002")
-func Remote(uri string, opts ...RemoteOption) lakeorm.Driver {
+// The concrete *Driver is returned (not lakeorm.Driver) so callers
+// can reach the per-driver conversion helpers (FromSQL,
+// FromDataFrame, FromTable, FromRow) and the raw session via
+// Session(). lakeorm.Open still accepts it because *Driver
+// satisfies the lakeorm.Driver interface.
+//
+//	drv := spark.Remote("sc://spark.internal:15002")
+//	db, _ := lakeorm.Open(drv, iceberg.Dialect(), backends.S3(...))
+//
+//	// Typed read via the driver's conversion helper:
+//	users, _ := lakeorm.Query[User](ctx, db, drv.FromSQL("SELECT * FROM users"))
+//
+//	// Drop to the raw Spark session when you need native DataFrame chaining:
+//	sess, _ := drv.Session(ctx)
+//	df, _ := sess.Sql(ctx, "...").GroupBy("country").Agg(...)
+//	agg, _ := lakeorm.Query[CountryAgg](ctx, db, drv.FromDataFrame(df))
+func Remote(uri string, opts ...RemoteOption) *Driver {
 	cfg := newRemoteConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -86,7 +99,7 @@ func Remote(uri string, opts ...RemoteOption) lakeorm.Driver {
 		return s, nil
 	}
 
-	d := &driver{
+	d := &Driver{
 		name:   "spark-remote",
 		logger: cfg.logger,
 		pool:   newSessionPool(cfg.poolSize, factory),

@@ -48,7 +48,7 @@ func FromFactory(
 		}
 		return s, nil
 	}
-	return &driver{
+	return &Driver{
 		name:   name,
 		logger: cfg.logger,
 		pool:   newSessionPool(cfg.poolSize, wrapped),
