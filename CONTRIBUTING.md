@@ -51,6 +51,8 @@ Issue bodies follow a Rob-Pike-succinct shape: What, Why, Proposal. Two or three
 
 ## Code style
 
+Read [`CONVENTIONS.md`](CONVENTIONS.md) first — it codifies the file-naming rule, the verb taxonomy (Find/Fetch/Is/Batch/Compute/Classify/ErrX ↔ NewErrX ↔ IsErrX), the package-doc rule, the public-surface-minimisation principle, and the end-to-end release gate. Every rule there is applied uniformly across the tree with no exceptions. If your PR introduces a pattern that diverges, either the PR follows the convention or the convention changes — one consistency, not many.
+
 - `gofmt` for formatting, `go vet` and `staticcheck` for basic hygiene.
 - Godoc comments on exported types, functions, and methods. No ASCII block separators (`// ----`, `// ====`) — godoc renders multi-paragraph comments clearly without them.
 - Comments explain the *why*, not the *what*. Well-named identifiers already explain the what.
