@@ -4,6 +4,18 @@ This document is the contract every contributor follows when writing or reviewin
 
 It is not a wishlist. Every rule below is applied uniformly across the tree — no exceptions, no "but my file is special." The point of this document is that a reader can look at the filesystem, read a few method names, and already know how the system is implemented without opening a single file.
 
+## Why consistency matters
+
+The goal is that someone can look at the filesystem, read a few method names, and already know how the system is implemented without opening a single file. If every package uses the same structure (`structs.go`, `struct_tag.go`, `struct_schema.go`, `struct_validate.go`), and every method follows the same naming rules (`Find` vs `Fetch`, `Batch` prefix for slices, `ClassifyOp` not `Categorize`), then the codebase becomes predictable. You stop needing to check whether this particular package did things differently.
+
+This has compounding benefits:
+
+- Consistent naming means fewer one-off types, which means less dead code to accumulate and clean up later.
+- Consistent structure means new packages are trivial to scaffold — copy the shape, fill in the domain.
+- Consistent patterns mean code review is faster because reviewers aren't evaluating novel approaches, they're checking that the established approach was followed correctly.
+
+**When in doubt, match what's already there.** If the existing code does it one way, do it the same way — even if you'd personally prefer something different. Local consistency beats individual preference. If the convention is wrong, the fix is to change the convention everywhere and update this document in the same PR, not to land a one-off exception.
+
 ---
 
 ## 1. File naming — every file is prefixed with the package's dominant noun
@@ -105,6 +117,24 @@ When a concept has a canonical verb, every layer of the stack that touches the c
 | Materialise typed rows from a DataFrame | `CollectAs[T]` / `StreamAs[T]` / `FirstAs[T]` | — `As` suffix is the canonical type-binding marker |
 | Run a typed SQL read | `Query[T]` / `QueryStream[T]` / `QueryFirst[T]` | no third synonym |
 
+**Concrete example — Find vs Fetch at the callsite:**
+
+```go
+// Find — absence is a normal case; caller decides what to do
+schema, err := structs.FindSchema(ctx, reflect.TypeOf(&User{}))
+if schema == nil {
+    // not parsed yet, fall through to default derivation
+}
+
+// Fetch — absence means something went wrong
+schema, err := structs.FetchSchema(ctx, reflect.TypeOf(&User{}))
+if errors.Is(err, errors.ErrNotFound) {
+    return status.Errorf(codes.NotFound, "no schema registered for %T", req)
+}
+```
+
+The distinction runs end-to-end. If the DAO layer exposes `FindX` it returns `(nil, nil)` when nothing matches; if it exposes `FetchX` it returns a typed `ErrNotFound`. At the service layer, `FindVersionID` returns nil when no version exists, and a sibling `FetchVersionID` wraps it to turn nil into an error. Callers pick the shape that matches their semantic expectation — no ambiguity, no "did nil mean not-found or error?" tangent during review.
+
 **Concept-naming rule:** if a concept has a public-API verb (`Find`, `Fetch`, `Is`, `Batch`, `Compute`, `Classify`, `Cleanup`, `Generate`) the same verb must be used at every layer of the stack. If `Classify` is the verb internally in `internal/migrations`, then the public surface (if any) uses `Classify` too — no `ClassifyOp` vs `OperationType` vs `ChangeKind` across layers for the same thing.
 
 **One type, one constructor.** `StagingPrefix` → `NewStagingPrefix(uri, ingestID)`. Never `NewStagingPrefix` alongside `MakeStagingPrefix` or `StagingPrefixFrom(...)`.
@@ -197,9 +227,13 @@ Error **sentinels** are declared in the `errors` subpackage alphabetically, with
 
 The write-side struct is the persisted-schema contract. One struct per table. `lake:"..."` tags describe the on-disk shape.
 
-The read-side struct is the projection-shape contract. One struct per query shape. Joins and aggregates produce rows that don't match any write-side struct; declare a fresh projection struct, materialise through `CollectAs[T]` / `StreamAs[T]` / `FirstAs[T]`.
+The read-side struct is the projection-shape contract. One struct per query shape. Joins and aggregates produce rows that don't match any write-side struct; declare a fresh projection struct, materialise through `Query[T]` / `QueryStream[T]` / `QueryFirst[T]` (closure-based, driver-native source in).
 
 Unified-ORM "one struct everywhere" patterns collapse under joins. The CQRS split sidesteps the whole problem.
+
+**Whole types over partial projections.** Prefer returning full structs from simple reads rather than creating one-off projection types that hold a subset of columns. If `Query[User]` returns the complete `User`, callers read `.Email`, `.CreatedAt`, whatever they need — the handler picks what to expose; the query doesn't try to guess.
+
+Projection types are the right call for **high-cardinality cross-table joins where the column savings actually matter**. A `CountryAggregate{Country, OrderCount, RevenuePence}` pulled from a 50M-row join is worth the dedicated type. A `UserEmail{ID, Email}` pulled from a 10K-row users table is not — just `Query[User]` and let the caller reach for `.Email`. Constantly creating one-off projection structs leads to an explosion of types that accumulate as dead code; you end up reading and writing 4× the code for exactly the same output. Fewer one-off structs means less dead code, more reuse, and a codebase that's easier to read and follow.
 
 See [`TYPING.md`](TYPING.md) for the design contract.
 
@@ -227,7 +261,38 @@ Carries over from [CONTRIBUTING.md](CONTRIBUTING.md)'s Design Axioms. lake-orm i
 
 ---
 
-## 14. End-to-end gate — release-ready proof
+## 14. Services vs clients — where business logic lives
+
+This distinction tells you where to look for logic, and it tells every PR reviewer where a new responsibility belongs.
+
+- A **service** has business logic. It validates inputs, coordinates between dependencies, and enforces domain rules. The root `lakeorm.Client` is a service — it generates ingest IDs, validates records before writing, hands the plan to the Dialect, orchestrates the Finalizer. Users of the service get a clean typed API; the service's methods own the correctness story.
+- A **client** (in the "wraps an external system" sense) has no business logic. It talks to one thing and exposes a clean interface. Every concrete driver (`drivers/spark.Remote`, `drivers/duckdb.Driver`) is a client — it forwards a plan to the engine, returns a row source, closes on shutdown. The driver doesn't validate records, route write paths, or decide on merge semantics; those are the service's job.
+
+**If you're adding something that just talks to an external system, it's a client — live in `drivers/`, `backends/`, or `dialects/`. If you're adding something that validates, transforms, or coordinates, it's a service — live in the root `lakeorm` package or in `internal/` if it's an implementation detail.** The distinction keeps layer violations easy to spot: a driver that has started calling `Validate()` or deciding on merge strategies has drifted into service territory and needs to delegate back up the stack.
+
+---
+
+## 15. The Go struct is the source of truth
+
+The tagged Go struct — `User{ID string \`lake:"id,pk"\`; Email string \`lake:"email,mergeKey" validate:"required,email"\`}` — is the authoritative description of the data in the lakehouse. Everything else — the CREATE TABLE DDL, the parquet schema, the goose migration files, the fingerprint in the manifest, the projection shapes on the read side — is derived from it.
+
+When a domain concept changes — a new field, a type change, a merge-key addition, a rename — the struct changes first, in the same PR that ships any migration or downstream consumer update. A generated migration that doesn't match the current struct is a bug; a struct change without a corresponding migration PR is a bug; a comment or doc that describes a different shape is a bug.
+
+**There is one source of truth and it lives in the Go code.** Migration files, generated SQL, wiki examples, and any future codegen must match what the struct says. Any divergence surfaces first at the next `MigrateGenerate` run (via the `lakeorm.sum` manifest hash) or at fingerprint-comparison time (in a future `AssertSchema` / `lakeorm migrate --check`) — whichever happens first, the tooling catches it before production does.
+
+---
+
+## 16. Generated files carry `_gen.go` and are never hand-edited
+
+Any file produced by a generator — mocks, proto stubs, future label-schema expansions, any `go generate`-driven artefact — is named `<concept>_gen.go` (or prefixed per rule 1: `<package>_<concept>_gen.go`). The `_gen.go` suffix is a promise that the file is rewritten on the next `go generate` run; hand edits disappear.
+
+Every generator lives under `tools/<generator-name>/` with its own `main.go` and a `//go:generate go run .` directive pointing at it. Shared codegen utilities live in `tools/codegenutils/` (when that pattern lands — not yet required at v0).
+
+Lake-orm at v0 has one generator in spirit (`MigrateGenerate`), but the files it produces are timestamped goose-format SQL, not `_gen.go` — those are artefacts users edit-review-commit, not regenerated code. When future codegen lands (proto-derived label schemas, Iceberg-catalog introspection, etc.), this rule governs it.
+
+---
+
+## 17. End-to-end gate — release-ready proof
 
 Before cutting any release, the full demo path must run clean from an empty clone:
 
