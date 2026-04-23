@@ -54,13 +54,14 @@ func main() {
     ctx := context.Background()
 
     store, _ := backend.S3("s3://bucket/lake")
-    db, _ := lakeorm.Open(spark.Remote("sc://host:15002"), iceberg.Dialect(), store)
+    drv := spark.Remote("sc://host:15002")
+    db, _ := lakeorm.Open(drv, iceberg.Dialect(), store)
     defer db.Close()
 
     _ = db.Migrate(ctx, &User{})
     _ = db.Insert(ctx, []*User{{ID: "u1", Email: "alice@example.com"}})
 
-    users, _ := lakeorm.Query[User](ctx, db, "SELECT * FROM users WHERE id = ?", "u1")
+    users, _ := lakeorm.Query[User](ctx, db, drv.FromSQL("SELECT * FROM users WHERE id = ?", "u1"))
     _ = users
 }
 ```
@@ -123,8 +124,7 @@ Schemas are contracts. Define them up front; clean data at the application bound
 * **Validation at the application boundary.** `lakeorm.Validate(records)` wraps [go-playground/validator](https://github.com/go-playground/validator) — rules live on the standard `validate:"required,email,uuid,..."` struct tag, errors unwrap to `validator.ValidationErrors` for per-field HTTP-400 responses.
 * **Strict JSON decoding.** `lakeorm.FromJSON[T](payload)` decodes HTTP / queue payloads straight into your tagged model and rejects any field the struct doesn't declare — the ingest-boundary corollary to "no schema evolution". The struct *is* the semantic layer.
 * **Two write paths, one API.** Small batches go direct; large ones use Parquet staging plus a single Spark operation.
-* **Typed reads.** `Query[T]`, `QueryStream[T]`, and `QueryFirst[T]`.
-* **CQRS for complex reads.** Use DataFrame plus `CollectAs[T]` / `StreamAs[T]`.
+* **Typed reads — `Query[T]` / `QueryStream[T]` / `QueryFirst[T]`.** One shape for every read, whether the query comes from a SQL string, a native Spark DataFrame chain, or a pre-opened `*sql.Rows`. The projection struct is the contract; the driver builds the Source (`drv.FromSQL(...)`, `drv.FromDataFrame(...)`, `drv.FromTable(...)`, `drv.FromRows(...)`).
 * **Iceberg and Delta dialects.** Pluggable via a `Dialect` interface.
 * **Multiple drivers.**
 
@@ -155,11 +155,13 @@ Go structs (lake:"..." tags)
     ▼
 lakeorm.Client ──► Dialect ──► Driver ──► Spark Connect
     │                                      │
-    ├──► Query[T] / Stream[T]              ▼
-    │                                 Iceberg / Delta
-    │                                      │
-    └──► DataFrame → CollectAs[T]          ▼
-                                      Object storage
+    │   writes: Insert (plan → finalize)   ▼
+    │   reads:  Query[T] over              Iceberg / Delta
+    │          drivers.Source              │
+    │          (drv.FromSQL /               ▼
+    │           drv.FromDataFrame /        Object storage
+    │           drv.FromTable /
+    │           drv.FromRows)
 ```
 
 Large writes stream Parquet directly to object storage and are materialised with a single Spark operation.
@@ -211,7 +213,7 @@ WHEN MATCHED THEN UPDATE SET *
 WHEN NOT MATCHED THEN INSERT *
 ```
 
-`WHEN MATCHED THEN UPDATE SET *` updates every non-key column, which is usually what you want. If you need to update only a subset (e.g. keep `created_at` immutable on upsert), write the MERGE yourself via `Client.Exec` or `Client.DataFrame` and the engine's native SQL — the auto-routed path doesn't split non-key columns into update vs insert buckets.
+`WHEN MATCHED THEN UPDATE SET *` updates every non-key column, which is usually what you want. If you need to update only a subset (e.g. keep `created_at` immutable on upsert), write the MERGE yourself via `Client.Exec` or drop to the concrete driver (`db.Driver().(*spark.Driver).Session(ctx)`) — the auto-routed path doesn't split non-key columns into update vs insert buckets.
 
 For a full walkthrough see [`examples/`](examples/) (the `bulk` and upsert examples) and the [wiki](https://github.com/datalake-go/lake-orm/wiki)'s Advanced Functions page.
 
@@ -293,7 +295,7 @@ A brief for readers who want to know what's actually happening when they call `I
 * **Validation is pass-through.** `lakeorm.Validate(records)` calls `validator.Struct()` from go-playground/validator. `Validate` at the boundary before `Insert` — the same rules run either way, but surfacing failures early gives the HTTP handler a clean 400.
 * **Writes are request-scoped.** `Client.Insert` generates a UUIDv7 `ingest_id`, hands a `WriteRequest` to the Dialect, gets back an `ExecutionPlan`. Plan kinds: `KindDirectIngest` (small batch, one bulk INSERT); `KindParquetIngest` (large append — stage parquet to `<warehouse>/<ingest_id>/part-*.parquet` through the Backend, then one `INSERT INTO target SELECT * FROM parquet.<staging>`); `KindParquetMerge` (merge-key present — same staging, but the driver emits `MERGE INTO target USING (SELECT * FROM staging WHERE _ingest_id = '<batch>') ON target.<mergeKey> = source.<mergeKey>`). The `_ingest_id` filter on the MERGE source bounds the operation to this batch and makes retry-after-OCC-conflict idempotent.
 * **`_ingest_id` is system-managed.** Every table lake-orm creates carries the column; the parquet writer stamps each row with the current batch's ingest_id. User structs don't declare it — declaring `_ingest_id` is a schema-parse error. Reconciliation queries use a projection struct that adds the column back on the read side.
-* **Reads are typed at the edge.** `Query[T]` → `db.DataFrame(ctx, sql)` → `CollectAs[T]`. For Spark-family drivers the DataFrame unwraps to `sparksql.DataFrame` and decoding happens through the fork's typed collect. For non-Spark drivers (DuckDB, Databricks SQL) the generic fallback iterates `DataFrame.Stream(ctx)` and scans each `Row` through lake-orm's reflection scanner. Unmapped columns are dropped silently — that's why `SELECT *` against a table with `_ingest_id` returns clean rows into a struct that doesn't declare it.
+* **Reads are typed at the edge.** `Query[T]` / `QueryStream[T]` / `QueryFirst[T]` take a `drivers.Source` — a closure the concrete driver builds via its own conversion helper (`drv.FromSQL`, `drv.FromDataFrame`, `drv.FromTable`, `drv.FromRows`). The driver's `drivers.Convertible` implementation invokes the source, walks its native rows (Spark DataFrame / `*sql.Rows`), and scans each one into the caller-supplied Go struct through lake-orm's reflection scanner. Unmapped columns are dropped silently — that's why `SELECT *` against a table with `_ingest_id` returns clean rows into a struct that doesn't declare it. See [`examples/arbitrary_spark_query`](examples/arbitrary_spark_query/) for the pattern in full: a native Spark `GroupBy + Agg` chain with zero SQL, decoded into a projection struct.
 * **Migrations are file-based.** `MigrateGenerate` replays the most recent migration file's `State-JSON` header to reconstruct the prior schema, diffs against the current struct, emits one goose-format `.sql` file per changed table with `-- DESTRUCTIVE: <reason>` comments on risky ops. `lakeorm.sum` manifest catches post-generation edits. Apply-time execution happens through lake-goose (separate binary), not lake-orm.
 
 ---
