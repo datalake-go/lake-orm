@@ -1,13 +1,14 @@
 package lakeorm
 
 import (
-	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/datalake-go/lake-orm/drivers"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -82,7 +83,9 @@ func (s stubDialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy
 func (s stubDialect) CreateTableDDL(*structs.LakeSchema, types.Location) (string, error) {
 	return "", nil
 }
-func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error) { return ExecutionPlan{}, nil }
+func (s stubDialect) PlanInsert(drivers.WriteRequest) (drivers.ExecutionPlan, error) {
+	return drivers.ExecutionPlan{}, nil
+}
 
 // TestMigrateGenerate_LegacyStateTriggersIngestIDAdd pins the
 // Phase-3 migration path from issue #63: a table whose most recent

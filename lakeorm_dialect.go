@@ -1,6 +1,7 @@
 package lakeorm
 
 import (
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -33,7 +34,7 @@ type Dialect interface {
 	// KindDirectIngest, KindParquetIngest, and KindParquetMerge based
 	// on batch size, mergeKey presence, and any caller-supplied
 	// WritePath override.
-	PlanInsert(req WriteRequest) (ExecutionPlan, error)
+	PlanInsert(req drivers.WriteRequest) (drivers.ExecutionPlan, error)
 
 	// IndexStrategy resolves an `indexed` / `mergeKey` tag intent
 	// into the dialect's concrete strategy descriptor.

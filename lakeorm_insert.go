@@ -9,6 +9,7 @@ import (
 	"github.com/parquet-go/parquet-go/compress"
 
 	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/internal/parquet"
 	"github.com/datalake-go/lake-orm/structs"
 )
@@ -22,7 +23,7 @@ import (
 // it a bursty producer can OOM the process even when the partition
 // writer is rotating correctly, because parquet row groups buffer in
 // memory between Flush calls.
-func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *structs.LakeSchema, records any) error {
+func (c *client) runFastPath(ctx context.Context, plan drivers.ExecutionPlan, schema *structs.LakeSchema, records any) error {
 	if err := c.sem.Acquire(ctx, 1); err != nil {
 		return fmt.Errorf("lakeorm: acquire ingest slot: %w", err)
 	}

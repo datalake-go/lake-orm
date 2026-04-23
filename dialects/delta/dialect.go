@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -144,11 +145,11 @@ func goTypeToDelta(t reflect.Type) (string, error) {
 	}
 }
 
-func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, error) {
-	if req.ForcePath == lakeorm.WritePathGRPC ||
-		(req.ForcePath == lakeorm.WritePathAuto && req.ApproxRowBytes < req.FastPathBytes) {
-		return lakeorm.ExecutionPlan{
-			Kind:     lakeorm.KindDirectIngest,
+func (d *dialect) PlanInsert(req drivers.WriteRequest) (drivers.ExecutionPlan, error) {
+	if req.ForcePath == drivers.WritePathGRPC ||
+		(req.ForcePath == drivers.WritePathAuto && req.ApproxRowBytes < req.FastPathBytes) {
+		return drivers.ExecutionPlan{
+			Kind:     drivers.KindDirectIngest,
 			IngestID: req.IngestID,
 			Target:   req.Schema.TableName,
 			Rows:     req.Records,
@@ -156,19 +157,19 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 		}, nil
 	}
 	if req.Backend == nil {
-		return lakeorm.ExecutionPlan{}, fmt.Errorf("delta: fast-path requires a Backend")
+		return drivers.ExecutionPlan{}, fmt.Errorf("delta: fast-path requires a Backend")
 	}
-	kind := lakeorm.KindParquetIngest
+	kind := drivers.KindParquetIngest
 	if len(req.Schema.MergeKeys) > 0 {
-		kind = lakeorm.KindParquetMerge
+		kind = drivers.KindParquetMerge
 	}
 	prefix := req.Backend.StagingPrefix(req.IngestID)
-	return lakeorm.ExecutionPlan{
+	return drivers.ExecutionPlan{
 		Kind:     kind,
 		IngestID: req.IngestID,
 		Target:   req.Schema.TableName,
 		Schema:   req.Schema,
-		Staging: lakeorm.StagingRef{
+		Staging: drivers.StagingRef{
 			Backend:  req.Backend,
 			Prefix:   prefix,
 			Location: req.Backend.StagingLocation(req.IngestID),

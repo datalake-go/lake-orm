@@ -31,9 +31,10 @@ import (
 	"time"
 
 	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/drivers"
+	lkerrors "github.com/datalake-go/lake-orm/errors"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
-	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // DialectOption tunes the DuckDB Dialect. Reserved for future knobs
@@ -160,7 +161,7 @@ func goTypeToDuckDB(t reflect.Type) (string, error) {
 // DuckDB has no multi-file COPY-INTO-from-staging idiom the
 // object-storage fast path expects; bulk inserts go straight
 // through the driver's prepared-statement loop.
-func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, error) {
+func (d *dialect) PlanInsert(req drivers.WriteRequest) (drivers.ExecutionPlan, error) {
 	// DuckDB's v0 dialect handles pure-append semantics only.
 	// Structs that declare a mergeKey want upsert (MERGE INTO
 	// target ON mergeKey = mergeKey ...), which the fast-path
@@ -169,13 +170,13 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 	// is better than silently appending — the user thinks they're
 	// upserting and gets duplicates instead.
 	if len(req.Schema.MergeKeys) > 0 {
-		return lakeorm.ExecutionPlan{}, fmt.Errorf(
+		return drivers.ExecutionPlan{}, fmt.Errorf(
 			"duckdb: upsert (via mergeKey) is not yet implemented for the embedded dialect; "+
 				"use iceberg / delta + driver/spark for upsert, or drop the mergeKey tag: %w",
 			lkerrors.ErrNotImplemented)
 	}
-	return lakeorm.ExecutionPlan{
-		Kind:     lakeorm.KindDirectIngest,
+	return drivers.ExecutionPlan{
+		Kind:     drivers.KindDirectIngest,
 		IngestID: req.IngestID,
 		Target:   d.qualified(req.Schema.TableName),
 		Rows:     req.Records,

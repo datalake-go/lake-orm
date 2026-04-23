@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	lakeorm "github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
@@ -43,7 +43,7 @@ func TestPlanInsert_NoMergeKeyRoutesToKindParquetIngest(t *testing.T) {
 	}
 
 	f := testutils.NewFactory(t)
-	plan, err := d.PlanInsert(lakeorm.WriteRequest{
+	plan, err := d.PlanInsert(drivers.WriteRequest{
 		Schema:         schema,
 		IngestID:       f.IngestID.String(),
 		RecordCount:    3,
@@ -54,7 +54,7 @@ func TestPlanInsert_NoMergeKeyRoutesToKindParquetIngest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanInsert: %v", err)
 	}
-	if plan.Kind != lakeorm.KindParquetIngest {
+	if plan.Kind != drivers.KindParquetIngest {
 		t.Errorf("plan.Kind = %v, want KindParquetIngest", plan.Kind)
 	}
 }
@@ -69,7 +69,7 @@ func TestPlanInsert_WithMergeKeyRoutesToKindParquetMerge(t *testing.T) {
 	}
 
 	f := testutils.NewFactory(t)
-	plan, err := d.PlanInsert(lakeorm.WriteRequest{
+	plan, err := d.PlanInsert(drivers.WriteRequest{
 		Schema:         schema,
 		IngestID:       f.IngestID.String(),
 		RecordCount:    3,
@@ -80,7 +80,7 @@ func TestPlanInsert_WithMergeKeyRoutesToKindParquetMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanInsert: %v", err)
 	}
-	if plan.Kind != lakeorm.KindParquetMerge {
+	if plan.Kind != drivers.KindParquetMerge {
 		t.Errorf("plan.Kind = %v, want KindParquetMerge", plan.Kind)
 	}
 	// IngestID must be threaded through so the driver's MERGE SQL
@@ -100,7 +100,7 @@ func TestPlanInsert_MergeKeyOnDirectIngestPathStaysDirect(t *testing.T) {
 	d := iceberg.Dialect()
 	schema, _ := structs.ParseSchema(reflect.TypeOf(bookUpsert{}))
 	f := testutils.NewFactory(t)
-	plan, err := d.PlanInsert(lakeorm.WriteRequest{
+	plan, err := d.PlanInsert(drivers.WriteRequest{
 		Schema:         schema,
 		IngestID:       f.IngestID.String(),
 		RecordCount:    1,
@@ -111,7 +111,7 @@ func TestPlanInsert_MergeKeyOnDirectIngestPathStaysDirect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanInsert: %v", err)
 	}
-	if plan.Kind != lakeorm.KindDirectIngest {
+	if plan.Kind != drivers.KindDirectIngest {
 		t.Errorf("plan.Kind = %v, want KindDirectIngest", plan.Kind)
 	}
 }

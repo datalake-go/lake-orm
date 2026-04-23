@@ -12,8 +12,8 @@ import (
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
 	"github.com/rs/zerolog"
 
-	"github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/drivers"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -39,44 +39,44 @@ func (d *Driver) Name() string { return d.name }
 func (d *Driver) Close() error { return d.pool.Close() }
 
 // Execute implements lakeorm.Driver. Dispatches by plan kind.
-func (d *Driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) Execute(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	switch plan.Kind {
-	case lakeorm.KindSQL, lakeorm.KindDDL:
+	case drivers.KindSQL, drivers.KindDDL:
 		return d.executeSQL(ctx, plan)
-	case lakeorm.KindDirectIngest:
+	case drivers.KindDirectIngest:
 		return d.executeDirectIngest(ctx, plan)
-	case lakeorm.KindParquetIngest:
+	case drivers.KindParquetIngest:
 		return d.executeParquetIngest(ctx, plan)
-	case lakeorm.KindParquetMerge:
+	case drivers.KindParquetMerge:
 		return d.executeParquetMerge(ctx, plan)
 	default:
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: unsupported plan kind %d", plan.Kind)
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("spark: unsupported plan kind %d", plan.Kind)
 	}
 }
 
-func (d *Driver) executeSQL(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeSQL(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, err
+		return drivers.Result{}, nopFinalizer{}, err
 	}
 	defer d.pool.Return(s)
 
 	df, err := s.Sql(ctx, plan.SQL)
 	if err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, translateClusterError(err)
+		return drivers.Result{}, nopFinalizer{}, translateClusterError(err)
 	}
 	if _, err := df.Collect(ctx); err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, translateClusterError(err)
+		return drivers.Result{}, nopFinalizer{}, translateClusterError(err)
 	}
-	return lakeorm.Result{}, nopFinalizer{}, nil
+	return drivers.Result{}, nopFinalizer{}, nil
 }
 
 // executeDirectIngest is the small-batch path — v0 stub. Real
 // implementation constructs an Arrow record batch from plan.Rows and
 // calls spark.CreateDataFrameFromArrow + df.Write().SaveAsTable. Wired
 // up in the write-path milestone.
-func (d *Driver) executeDirectIngest(_ context.Context, _ lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
-	return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: direct ingest not yet implemented (v0 scaffold)")
+func (d *Driver) executeDirectIngest(_ context.Context, _ drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
+	return drivers.Result{}, nopFinalizer{}, fmt.Errorf("spark: direct ingest not yet implemented (v0 scaffold)")
 }
 
 // executeParquetIngest is the fast-path commit — once the partition
@@ -90,10 +90,10 @@ func (d *Driver) executeDirectIngest(_ context.Context, _ lakeorm.ExecutionPlan)
 // view path goes through the standard DataSourceV2 read, which
 // Iceberg's extensions leave alone. See UNSUPPORTED_DATASOURCE_FOR_
 // DIRECT_QUERY.
-func (d *Driver) executeParquetIngest(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeParquetIngest(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, err
+		return drivers.Result{}, nopFinalizer{}, err
 	}
 
 	// View name derived from the staging prefix — guaranteed unique
@@ -117,12 +117,12 @@ func (d *Driver) executeParquetIngest(ctx context.Context, plan lakeorm.Executio
 		prefix:  plan.Staging.Prefix,
 		logger:  d.logger,
 	}
-	return lakeorm.Result{}, f, nil
+	return drivers.Result{}, f, nil
 }
 
 // executeParquetMerge is the upsert variant of executeParquetIngest.
 // Used when the schema declares at least one mergeKey field (see
-// lakeorm.KindParquetMerge).
+// drivers.KindParquetMerge).
 //
 // The emitted SQL is:
 //
@@ -138,16 +138,16 @@ func (d *Driver) executeParquetIngest(ctx context.Context, plan lakeorm.Executio
 // concurrent MERGEs would see each other's parquet parts in the
 // staging directory (if the caller ever shared staging roots) and
 // merge them indiscriminately.
-func (d *Driver) executeParquetMerge(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeParquetMerge(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	if len(plan.Schema.MergeKeys) == 0 {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: parquet-merge requires schema.MergeKeys")
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("spark: parquet-merge requires schema.MergeKeys")
 	}
 	if plan.IngestID == "" {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("spark: parquet-merge requires plan.IngestID")
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("spark: parquet-merge requires plan.IngestID")
 	}
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, err
+		return drivers.Result{}, nopFinalizer{}, err
 	}
 
 	viewName := "lakeorm_staging_" + sanitizeIdent(plan.Staging.Prefix)
@@ -181,7 +181,7 @@ func (d *Driver) executeParquetMerge(ctx context.Context, plan lakeorm.Execution
 		prefix:    plan.Staging.Prefix,
 		logger:    d.logger,
 	}
-	return lakeorm.Result{}, f, nil
+	return drivers.Result{}, f, nil
 }
 
 // sanitizeIdent strips non-identifier characters so a staging prefix
@@ -204,26 +204,26 @@ func sanitizeIdent(s string) string {
 
 // Exec implements lakeorm.Driver.Exec — fire-and-forget SQL for DDL or
 // one-off DML. Does not go through Dialect.
-func (d *Driver) Exec(ctx context.Context, sql string, args ...any) (lakeorm.ExecResult, error) {
+func (d *Driver) Exec(ctx context.Context, sql string, args ...any) (drivers.ExecResult, error) {
 	s, err := d.pool.Borrow(ctx)
 	if err != nil {
-		return lakeorm.ExecResult{}, err
+		return drivers.ExecResult{}, err
 	}
 	defer d.pool.Return(s)
 
 	rendered, err := renderSQL(sql, args)
 	if err != nil {
-		return lakeorm.ExecResult{}, err
+		return drivers.ExecResult{}, err
 	}
 
 	df, err := s.Sql(ctx, rendered)
 	if err != nil {
-		return lakeorm.ExecResult{}, translateClusterError(err)
+		return drivers.ExecResult{}, translateClusterError(err)
 	}
 	if _, err := df.Collect(ctx); err != nil {
-		return lakeorm.ExecResult{}, translateClusterError(err)
+		return drivers.ExecResult{}, translateClusterError(err)
 	}
-	return lakeorm.ExecResult{}, nil
+	return drivers.ExecResult{}, nil
 }
 
 // nopFinalizer is the no-op Finalizer returned by single-phase plans.
