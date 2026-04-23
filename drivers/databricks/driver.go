@@ -1,6 +1,6 @@
 // Package databricks is lake-orm's native Databricks driver. Takes
 // a user-constructed *sql.DB (typically from databricks-sql-go) and
-// implements the lakeorm.Driver interface by translating between
+// implements the drivers.Driver interface by translating between
 // Spark-tagged Go structs and SQL rows.
 //
 // Bring-your-own-connection. Configuring Databricks (OAuth M2M,
@@ -36,7 +36,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/drivers"
 )
 
 // New returns a *Driver backed by the supplied *sql.DB.
@@ -86,51 +86,51 @@ type Driver struct {
 }
 
 // DB returns the underlying *sql.DB. Escape hatch for callers who
-// need to drop to raw database/sql operations the lakeorm.Driver
+// need to drop to raw database/sql operations the drivers.Driver
 // interface doesn't expose (PrepareContext, transactions, etc.).
 func (d *Driver) DB() *sql.DB { return d.db }
 
-// Name implements lakeorm.Driver.
+// Name implements drivers.Driver.
 func (d *Driver) Name() string { return d.name }
 
-// Close implements lakeorm.Driver. The *sql.DB is owned by the
+// Close implements drivers.Driver. The *sql.DB is owned by the
 // caller and is NOT closed here — they constructed it, they close
 // it on their own shutdown path.
 func (d *Driver) Close() error { return nil }
 
-// Execute implements lakeorm.Driver for plans the v0 surface
+// Execute implements drivers.Driver for plans the v0 surface
 // supports.
 //
 // KindDDL / KindSQL route through (*sql.DB).ExecContext as a
 // fire-and-forget statement. Direct-ingest / parquet-ingest paths
 // are v1 targets — they require Backend + COPY INTO wiring the
 // reference implementation in svc-data-platform-api documents.
-func (d *Driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) Execute(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	switch plan.Kind {
-	case lakeorm.KindDDL, lakeorm.KindSQL:
+	case drivers.KindDDL, drivers.KindSQL:
 		if _, err := d.db.ExecContext(ctx, plan.SQL, plan.Args...); err != nil {
-			return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("databricks: exec: %w", err)
+			return drivers.Result{}, nopFinalizer{}, fmt.Errorf("databricks: exec: %w", err)
 		}
-		return lakeorm.Result{}, nopFinalizer{}, nil
+		return drivers.Result{}, nopFinalizer{}, nil
 	default:
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("databricks: plan kind %d not supported in v0 (use the spark driver for KindParquetIngest / KindDirectIngest)", plan.Kind)
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("databricks: plan kind %d not supported in v0 (use the spark driver for KindParquetIngest / KindDirectIngest)", plan.Kind)
 	}
 }
 
-// Exec implements lakeorm.Driver. Plain fire-and-forget exec.
-func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (lakeorm.ExecResult, error) {
+// Exec implements drivers.Driver. Plain fire-and-forget exec.
+func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (drivers.ExecResult, error) {
 	res, err := d.db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		return lakeorm.ExecResult{}, fmt.Errorf("databricks: exec: %w", err)
+		return drivers.ExecResult{}, fmt.Errorf("databricks: exec: %w", err)
 	}
 	var affected int64 = -1
 	if n, nerr := res.RowsAffected(); nerr == nil {
 		affected = n
 	}
-	return lakeorm.ExecResult{RowsAffected: affected}, nil
+	return drivers.ExecResult{RowsAffected: affected}, nil
 }
 
-// nopFinalizer satisfies lakeorm.Finalizer for single-phase plans.
+// nopFinalizer satisfies drivers.Finalizer for single-phase plans.
 type nopFinalizer struct{}
 
 func (nopFinalizer) Commit(context.Context) error { return nil }

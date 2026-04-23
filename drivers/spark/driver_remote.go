@@ -61,11 +61,11 @@ func WithSessionConfs(confs map[string]string) RemoteOption {
 // endpoint (no OAuth, no cluster-ID header). Use for self-hosted
 // Spark, EMR, Glue, and the lake-k8s local stack.
 //
-// The concrete *Driver is returned (not lakeorm.Driver) so callers
+// The concrete *Driver is returned (not drivers.Driver) so callers
 // can reach the per-driver conversion helpers (FromSQL,
 // FromDataFrame, FromTable, FromRow) and the raw session via
 // Session(). lakeorm.Open still accepts it because *Driver
-// satisfies the lakeorm.Driver interface.
+// satisfies the drivers.Driver interface.
 //
 //	drv := spark.Remote("sc://spark.internal:15002")
 //	db, _ := lakeorm.Open(drv, iceberg.Dialect(), backends.S3(...))

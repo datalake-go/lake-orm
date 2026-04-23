@@ -70,7 +70,7 @@ func (c Config) writerOption() pq.WriterOption {
 }
 
 // Uploader is the minimal interface PartitionWriter needs from a
-// Backend — open a writable stream at `key`. Any lakeorm.Backend
+// Backend — open a writable stream at `key`. Any backends.Backend
 // satisfies it; tests pass an in-memory stub.
 type Uploader interface {
 	Writer(ctx context.Context, key string) (io.WriteCloser, error)

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"github.com/datalake-go/lake-orm/drivers"
 )
 
 // Compression selects the codec used by the fast-path partition writer.
@@ -134,20 +136,20 @@ type InsertOption func(*insertConfig)
 
 type insertConfig struct {
 	idempotencyKey string
-	path           WritePath
+	path           drivers.WritePath
 	onConflict     ConflictStrategy
 }
 
 // ViaGRPC forces the direct gRPC ingest path regardless of batch size.
 // Useful when latency matters more than throughput.
 func ViaGRPC() InsertOption {
-	return func(c *insertConfig) { c.path = WritePathGRPC }
+	return func(c *insertConfig) { c.path = drivers.WritePathGRPC }
 }
 
 // ViaObjectStorage forces the S3-Parquet fast path regardless of batch
 // size. Useful for benchmarks or when you know the batch is large.
 func ViaObjectStorage() InsertOption {
-	return func(c *insertConfig) { c.path = WritePathObjectStorage }
+	return func(c *insertConfig) { c.path = drivers.WritePathObjectStorage }
 }
 
 // WithIdempotencyKey sets the idempotency token. If omitted, a

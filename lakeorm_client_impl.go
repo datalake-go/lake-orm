@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects"
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -14,9 +17,9 @@ import (
 // client is the default Client implementation. Holds the three
 // injected dependencies plus the backpressure semaphore.
 type client struct {
-	driver  Driver
-	dialect Dialect
-	backend Backend
+	driver  drivers.Driver
+	dialect dialects.Dialect
+	backend backends.Backend
 	cfg     *clientConfig
 	sem     *semaphore.Weighted
 }
@@ -59,7 +62,7 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	// a stable token, but the staging prefix uses ingestID.
 	idem := ic.idempotencyKey
 
-	plan, err := c.dialect.PlanInsert(WriteRequest{
+	plan, err := c.dialect.PlanInsert(drivers.WriteRequest{
 		Ctx:            ctx,
 		Schema:         schema,
 		IngestID:       ingestID.String(),
@@ -76,7 +79,7 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	}
 
 	switch plan.Kind {
-	case KindParquetIngest, KindParquetMerge:
+	case drivers.KindParquetIngest, drivers.KindParquetMerge:
 		// Both variants ride the same staging-writer + commit path;
 		// the difference is the SQL the driver emits on Execute
 		// (INSERT INTO ... vs MERGE INTO ...). Staging behaviour,
@@ -98,9 +101,9 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	}
 }
 
-func (c *client) Driver() Driver { return c.driver }
+func (c *client) Driver() drivers.Driver { return c.driver }
 
-func (c *client) Exec(ctx context.Context, sql string, args ...any) (ExecResult, error) {
+func (c *client) Exec(ctx context.Context, sql string, args ...any) (drivers.ExecResult, error) {
 	return c.driver.Exec(ctx, sql, args...)
 }
 

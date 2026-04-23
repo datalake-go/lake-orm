@@ -1,6 +1,6 @@
 // Package duckdb is lake-orm's embedded DuckDB driver. It takes a
 // *sql.DB constructed against go-duckdb and implements the
-// lakeorm.Driver interface by translating between lake-tagged Go
+// drivers.Driver interface by translating between lake-tagged Go
 // structs and DuckDB SQL rows.
 //
 // This is the "no network, no JVM, no container" path — useful for:
@@ -32,7 +32,7 @@
 //   - drivers/databricks        — Databricks native (BYO *sql.DB)
 //   - drivers/duckdb            — embedded DuckDB (this package)
 //
-// All four implement lakeorm.Driver + drivers.Convertible. ORM code
+// All four implement drivers.Driver + drivers.Convertible. ORM code
 // (Insert, Query[T], Migrate) stays portable across them.
 package duckdb
 
@@ -43,7 +43,7 @@ import (
 	"reflect"
 	"strings"
 
-	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/types"
 	"github.com/jmoiron/sqlx/reflectx"
 )
@@ -103,20 +103,20 @@ type Driver struct {
 }
 
 // DB returns the underlying *sql.DB. Escape hatch for callers who
-// need to drop to raw database/sql operations the lakeorm.Driver
+// need to drop to raw database/sql operations the drivers.Driver
 // interface doesn't expose (PrepareContext, transactions,
 // `INSTALL iceberg;`-style extension setup, etc.).
 func (d *Driver) DB() *sql.DB { return d.db }
 
-// Name implements lakeorm.Driver.
+// Name implements drivers.Driver.
 func (d *Driver) Name() string { return d.name }
 
-// Close implements lakeorm.Driver. The *sql.DB is owned by the
+// Close implements drivers.Driver. The *sql.DB is owned by the
 // caller and is NOT closed here — they constructed it, they close
 // it on their own shutdown path.
 func (d *Driver) Close() error { return nil }
 
-// Execute implements lakeorm.Driver.
+// Execute implements drivers.Driver.
 //
 // KindDDL / KindSQL route through (*sql.DB).ExecContext.
 // KindDirectIngest walks plan.Rows via reflection and fires one
@@ -124,17 +124,17 @@ func (d *Driver) Close() error { return nil }
 // there's no network round-trip per statement. KindParquetIngest
 // is not reachable from the duckdb Dialect (which never routes to
 // it); if another dialect emits one at this driver it errors.
-func (d *Driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) Execute(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	switch plan.Kind {
-	case lakeorm.KindDDL, lakeorm.KindSQL:
+	case drivers.KindDDL, drivers.KindSQL:
 		if _, err := d.db.ExecContext(ctx, plan.SQL, plan.Args...); err != nil {
-			return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: exec: %w", err)
+			return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: exec: %w", err)
 		}
-		return lakeorm.Result{}, nopFinalizer{}, nil
-	case lakeorm.KindDirectIngest:
+		return drivers.Result{}, nopFinalizer{}, nil
+	case drivers.KindDirectIngest:
 		return d.executeDirectIngest(ctx, plan)
 	default:
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: plan kind %d not supported", plan.Kind)
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: plan kind %d not supported", plan.Kind)
 	}
 }
 
@@ -142,19 +142,19 @@ func (d *Driver) Execute(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeo
 // []*T) and inserts each record. Values are pulled via reflection
 // against plan.Schema's field order; SortableID and other
 // sql.Valuer types pass through database/sql's normal conversion.
-func (d *Driver) executeDirectIngest(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.Result, lakeorm.Finalizer, error) {
+func (d *Driver) executeDirectIngest(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	if plan.Schema == nil {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest requires a schema")
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest requires a schema")
 	}
 	if plan.Target == "" {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest requires a target")
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest requires a target")
 	}
 	rv := reflect.ValueOf(plan.Rows)
 	if rv.Kind() != reflect.Slice {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest expects a slice, got %v", rv.Kind())
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: direct ingest expects a slice, got %v", rv.Kind())
 	}
 	if rv.Len() == 0 {
-		return lakeorm.Result{}, nopFinalizer{}, nil
+		return drivers.Result{}, nopFinalizer{}, nil
 	}
 
 	cols := make([]string, 0, len(plan.Schema.Fields)+1)
@@ -177,7 +177,7 @@ func (d *Driver) executeDirectIngest(ctx context.Context, plan lakeorm.Execution
 
 	stmt, err := d.db.PrepareContext(ctx, insertSQL)
 	if err != nil {
-		return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: prepare insert: %w", err)
+		return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: prepare insert: %w", err)
 	}
 	defer stmt.Close()
 
@@ -189,26 +189,26 @@ func (d *Driver) executeDirectIngest(ctx context.Context, plan lakeorm.Execution
 			args[j] = reflectx.FieldByIndexes(row, idx).Interface()
 		}
 		if _, err := stmt.ExecContext(ctx, args...); err != nil {
-			return lakeorm.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: insert row %d: %w", i, err)
+			return drivers.Result{}, nopFinalizer{}, fmt.Errorf("duckdb: insert row %d: %w", i, err)
 		}
 	}
-	return lakeorm.Result{}, nopFinalizer{}, nil
+	return drivers.Result{}, nopFinalizer{}, nil
 }
 
-// Exec implements lakeorm.Driver. Plain fire-and-forget exec.
-func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (lakeorm.ExecResult, error) {
+// Exec implements drivers.Driver. Plain fire-and-forget exec.
+func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (drivers.ExecResult, error) {
 	res, err := d.db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		return lakeorm.ExecResult{}, fmt.Errorf("duckdb: exec: %w", err)
+		return drivers.ExecResult{}, fmt.Errorf("duckdb: exec: %w", err)
 	}
 	var affected int64 = -1
 	if n, nerr := res.RowsAffected(); nerr == nil {
 		affected = n
 	}
-	return lakeorm.ExecResult{RowsAffected: affected}, nil
+	return drivers.ExecResult{RowsAffected: affected}, nil
 }
 
-// nopFinalizer satisfies lakeorm.Finalizer for single-phase plans.
+// nopFinalizer satisfies drivers.Finalizer for single-phase plans.
 type nopFinalizer struct{}
 
 func (nopFinalizer) Commit(context.Context) error { return nil }

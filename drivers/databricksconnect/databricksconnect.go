@@ -41,7 +41,7 @@ import (
 
 // Driver returns a *spark.Driver connected to a Databricks
 // workspace via Spark Connect. The concrete *spark.Driver type is
-// exposed (rather than lakeorm.Driver) so callers can reach the
+// exposed (rather than drivers.Driver) so callers can reach the
 // per-driver conversion helpers (FromSQL, FromDataFrame, FromTable,
 // FromRow) and the raw session (Session) via a Client.Driver()
 // type-assertion.

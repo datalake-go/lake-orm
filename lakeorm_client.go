@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/datalake-go/lake-orm/drivers"
 )
 
 // Client is the main entry point. All methods are safe to call
@@ -45,11 +47,11 @@ type Client interface {
 	// grammar is driver-specific: a Spark DataFrame and a *sql.Rows
 	// have different acquisition shapes, and hiding that costs the
 	// caller power without buying portability.
-	Driver() Driver
+	Driver() drivers.Driver
 
 	// Exec runs a raw SQL statement that returns no rows (DDL, DML
 	// that the typed surface doesn't cover).
-	Exec(ctx context.Context, sql string, args ...any) (ExecResult, error)
+	Exec(ctx context.Context, sql string, args ...any) (drivers.ExecResult, error)
 
 	// Migrate is the bootstrap path — idempotent CREATE TABLE IF NOT
 	// EXISTS derived from struct tags. Sufficient for dev and fresh
