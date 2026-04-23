@@ -5,13 +5,17 @@
 // sit in sibling sub-packages.
 //
 // Convertible is the read-side capability. It exists so lake-orm
-// never has to own a query grammar: a caller hands the driver a
-// Source closure that produces the driver's native row source (a
+// never has to own a query grammar, such as sql.Rows or Dataframes
+// because we want to be able to support the underlying Driver callsites
+// regardless of what drivers we decide to implement we pick.
+
+// Insead, Source closure that produces the driver's native row source (a
 // Spark DataFrame, a *sql.Rows, an Arrow Record, whatever the
 // driver decides is canonical), and the driver decodes each row
 // into the user-supplied Go type. Drivers that implement
 // Convertible participate in lakeorm.Query[T] / QueryStream[T] /
-// QueryFirst[T].
+// QueryFirst[T]. All we care about is whether our response is a 
+// congruent array or a stream. Which I think is much better design.
 //
 // Per-driver conversion helpers — FromSQL / FromDataFrame /
 // FromRows / FromTable / FromRow, each a method on the concrete
