@@ -1,6 +1,6 @@
 // Package duckdb is lake-orm's embedded DuckDB driver. It takes a
 // *sql.DB constructed against go-duckdb and implements the
-// lakeorm.Driver interface by translating between lake-tagged Go
+// drivers.Driver interface by translating between lake-tagged Go
 // structs and DuckDB SQL rows.
 //
 // This is the "no network, no JVM, no container" path — useful for:
@@ -32,7 +32,7 @@
 //   - drivers/databricks        — Databricks native (BYO *sql.DB)
 //   - drivers/duckdb            — embedded DuckDB (this package)
 //
-// All four implement lakeorm.Driver + drivers.Convertible. ORM code
+// All four implement drivers.Driver + drivers.Convertible. ORM code
 // (Insert, Query[T], Migrate) stays portable across them.
 package duckdb
 
@@ -103,20 +103,20 @@ type Driver struct {
 }
 
 // DB returns the underlying *sql.DB. Escape hatch for callers who
-// need to drop to raw database/sql operations the lakeorm.Driver
+// need to drop to raw database/sql operations the drivers.Driver
 // interface doesn't expose (PrepareContext, transactions,
 // `INSTALL iceberg;`-style extension setup, etc.).
 func (d *Driver) DB() *sql.DB { return d.db }
 
-// Name implements lakeorm.Driver.
+// Name implements drivers.Driver.
 func (d *Driver) Name() string { return d.name }
 
-// Close implements lakeorm.Driver. The *sql.DB is owned by the
+// Close implements drivers.Driver. The *sql.DB is owned by the
 // caller and is NOT closed here — they constructed it, they close
 // it on their own shutdown path.
 func (d *Driver) Close() error { return nil }
 
-// Execute implements lakeorm.Driver.
+// Execute implements drivers.Driver.
 //
 // KindDDL / KindSQL route through (*sql.DB).ExecContext.
 // KindDirectIngest walks plan.Rows via reflection and fires one
@@ -195,7 +195,7 @@ func (d *Driver) executeDirectIngest(ctx context.Context, plan drivers.Execution
 	return drivers.Result{}, nopFinalizer{}, nil
 }
 
-// Exec implements lakeorm.Driver. Plain fire-and-forget exec.
+// Exec implements drivers.Driver. Plain fire-and-forget exec.
 func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (drivers.ExecResult, error) {
 	res, err := d.db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {

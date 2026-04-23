@@ -1,6 +1,6 @@
 // Package databricks is lake-orm's native Databricks driver. Takes
 // a user-constructed *sql.DB (typically from databricks-sql-go) and
-// implements the lakeorm.Driver interface by translating between
+// implements the drivers.Driver interface by translating between
 // Spark-tagged Go structs and SQL rows.
 //
 // Bring-your-own-connection. Configuring Databricks (OAuth M2M,
@@ -86,19 +86,19 @@ type Driver struct {
 }
 
 // DB returns the underlying *sql.DB. Escape hatch for callers who
-// need to drop to raw database/sql operations the lakeorm.Driver
+// need to drop to raw database/sql operations the drivers.Driver
 // interface doesn't expose (PrepareContext, transactions, etc.).
 func (d *Driver) DB() *sql.DB { return d.db }
 
-// Name implements lakeorm.Driver.
+// Name implements drivers.Driver.
 func (d *Driver) Name() string { return d.name }
 
-// Close implements lakeorm.Driver. The *sql.DB is owned by the
+// Close implements drivers.Driver. The *sql.DB is owned by the
 // caller and is NOT closed here — they constructed it, they close
 // it on their own shutdown path.
 func (d *Driver) Close() error { return nil }
 
-// Execute implements lakeorm.Driver for plans the v0 surface
+// Execute implements drivers.Driver for plans the v0 surface
 // supports.
 //
 // KindDDL / KindSQL route through (*sql.DB).ExecContext as a
@@ -117,7 +117,7 @@ func (d *Driver) Execute(ctx context.Context, plan drivers.ExecutionPlan) (drive
 	}
 }
 
-// Exec implements lakeorm.Driver. Plain fire-and-forget exec.
+// Exec implements drivers.Driver. Plain fire-and-forget exec.
 func (d *Driver) Exec(ctx context.Context, sqlStr string, args ...any) (drivers.ExecResult, error) {
 	res, err := d.db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {

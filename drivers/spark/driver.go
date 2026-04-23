@@ -32,13 +32,13 @@ type Driver struct {
 	pool   *SessionPool
 }
 
-// Name implements lakeorm.Driver.
+// Name implements drivers.Driver.
 func (d *Driver) Name() string { return d.name }
 
-// Close implements lakeorm.Driver. Stops the session pool.
+// Close implements drivers.Driver. Stops the session pool.
 func (d *Driver) Close() error { return d.pool.Close() }
 
-// Execute implements lakeorm.Driver. Dispatches by plan kind.
+// Execute implements drivers.Driver. Dispatches by plan kind.
 func (d *Driver) Execute(ctx context.Context, plan drivers.ExecutionPlan) (drivers.Result, drivers.Finalizer, error) {
 	switch plan.Kind {
 	case drivers.KindSQL, drivers.KindDDL:
@@ -202,7 +202,7 @@ func sanitizeIdent(s string) string {
 	return string(out)
 }
 
-// Exec implements lakeorm.Driver.Exec — fire-and-forget SQL for DDL or
+// Exec implements drivers.Driver.Exec — fire-and-forget SQL for DDL or
 // one-off DML. Does not go through Dialect.
 func (d *Driver) Exec(ctx context.Context, sql string, args ...any) (drivers.ExecResult, error) {
 	s, err := d.pool.Borrow(ctx)

@@ -5,9 +5,9 @@ This document is the in-tree reference for how lakeorm's write path actually run
 ## Composition
 
 ```
-User code ── lakeorm.Client ── lakeorm.Dialect ── lakeorm.Driver ── Spark Connect ── Iceberg / Delta
+User code ── lakeorm.Client ── dialects.Dialect ── drivers.Driver ── Spark Connect ── Iceberg / Delta
                   │
-             lakeorm.Backend ── bytes on S3 / GCS / file / memory
+             backends.Backend ── bytes on S3 / GCS / file / memory
 ```
 
 Three orthogonal interfaces compose at `lakeorm.Open(driver, dialect, backend, ...)`:
