@@ -99,7 +99,7 @@ func main() {
 	}
 
 	rows, err := lakeorm.Query[User](ctx, db,
-		`SELECT * FROM users WHERE country = ?`, "UK")
+		drv.FromSQL(`SELECT * FROM users WHERE country = ?`, "UK"))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}

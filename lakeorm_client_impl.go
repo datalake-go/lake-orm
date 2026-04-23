@@ -98,16 +98,10 @@ func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) 
 	}
 }
 
-func (c *client) Query(ctx context.Context) QueryBuilder {
-	return &dynamicQuery{client: c, ctx: ctx}
-}
+func (c *client) Driver() Driver { return c.driver }
 
 func (c *client) Exec(ctx context.Context, sql string, args ...any) (ExecResult, error) {
 	return c.driver.Exec(ctx, sql, args...)
-}
-
-func (c *client) DataFrame(ctx context.Context, sql string, args ...any) (DataFrame, error) {
-	return c.driver.DataFrame(ctx, sql, args...)
 }
 
 func (c *client) Migrate(ctx context.Context, models ...any) error {

@@ -68,8 +68,9 @@ func main() {
 	// index strategies are exposed as dialect options for teams that
 	// want to pin them explicitly rather than relying on cluster
 	// defaults.
+	drv := spark.Remote(sparkURI)
 	db, err := lakeorm.Open(
-		spark.Remote(sparkURI),
+		drv,
 		delta.Dialect(
 			delta.WithDeletionVectors(true),
 			delta.WithIndexStrategy("event_type", delta.ZOrder),
@@ -115,8 +116,9 @@ func main() {
 	// Read back. Typed via lake:"..." tags — the scanner treats
 	// `lake`, `lakeorm`, `spark` equivalently.
 	rows, err := lakeorm.Query[Event](ctx, db,
-		`SELECT * FROM events WHERE event_date = ? AND event_type = ?`,
-		now.Format("2006-01-02"), "page_view")
+		drv.FromSQL(
+			`SELECT * FROM events WHERE event_date = ? AND event_type = ?`,
+			now.Format("2006-01-02"), "page_view"))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}

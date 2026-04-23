@@ -37,7 +37,16 @@ import (
 // DuckDB / Databricks SQL. The concrete type is opaque to the
 // caller; the Convertible implementation type-asserts to its own
 // known native type and fails fast if something else came back.
-type Source func(ctx context.Context) (any, error)
+//
+// The cleanup function is the source's release hook: any resources
+// acquired to produce the native (a borrowed session, an open
+// *sql.Rows, a file handle) get released when the Convertible
+// implementation is done iterating. May be nil when the source
+// holds nothing that needs releasing. Convertible implementations
+// call it via defer immediately after the source returns a
+// non-nil native value, so the lifecycle always closes cleanly
+// even if iteration returns early.
+type Source func(ctx context.Context) (native any, cleanup func(), err error)
 
 // Convertible is the optional driver capability: given a Source
 // that produces the driver's own native row type, decode each row

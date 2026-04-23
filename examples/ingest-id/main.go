@@ -77,11 +77,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(
-		spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")),
-		iceberg.Dialect(),
-		store,
-	)
+	drv := spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002"))
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -114,7 +111,7 @@ func main() {
 	// struct doesn't, so `Query[Event]` would silently drop the
 	// column.
 	rows, err := lakeorm.Query[EventWithIngestID](ctx, db,
-		`SELECT * FROM events ORDER BY _ingest_id, created_at`)
+		drv.FromSQL(`SELECT * FROM events ORDER BY _ingest_id, created_at`))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}

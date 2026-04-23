@@ -82,7 +82,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(spark.Remote(sparkURI), iceberg.Dialect(), store)
+	drv := spark.Remote(sparkURI)
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -110,7 +111,7 @@ func main() {
 	// Read back through the typed helper. Whether the struct is
 	// tagged `lake:`, `lakeorm:`, or `spark:`, the scanner resolves
 	// columns through the same precedence chain.
-	rows, err := lakeorm.Query[User](ctx, db, `SELECT * FROM users`)
+	rows, err := lakeorm.Query[User](ctx, db, drv.FromSQL(`SELECT * FROM users`))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}

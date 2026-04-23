@@ -11,13 +11,21 @@ import (
 // concurrently; the internal session pool serializes per-session state
 // as needed.
 //
-// The surface matches what the README promises: validated writes via
-// Insert (which auto-routes to MERGE when the struct carries a
-// mergeKey), typed reads via the top-level Query[T] generics over
-// DataFrame, bootstrap via Migrate, migration authoring via
-// MigrateGenerate, staging cleanup via CleanupStaging, and escape
-// hatches Exec / DataFrame for anything the typed surface doesn't
-// cover.
+// Writes bind to persisted types via Insert (auto-routes to MERGE
+// when the struct carries a mergeKey). Reads run through the
+// drivers.Convertible capability — build a driver-native Source
+// with the concrete driver's conversion helpers, reach the driver
+// via Driver(), then feed the Source to lakeorm.Query[T] /
+// QueryStream[T] / QueryFirst[T] for typed decode:
+//
+//	drv := db.Driver().(*spark.Driver)
+//	users, _ := lakeorm.Query[User](ctx, db,
+//	    drv.FromSQL("SELECT * FROM users"))
+//
+// Migrate bootstraps tables from struct tags; MigrateGenerate writes
+// .sql files for the lake-goose migration runner; CleanupStaging
+// sweeps orphan staging prefixes; Exec is the raw-SQL escape hatch
+// for DDL / one-off DML the typed surface doesn't cover.
 type Client interface {
 	// Insert writes records (pointer, slice, or slice-of-pointer) to
 	// the target table. Validation runs first; then the Dialect
@@ -26,19 +34,22 @@ type Client interface {
 	// Driver executes.
 	Insert(ctx context.Context, records any, opts ...InsertOption) error
 
-	// Query is the dynamic (non-generic) entry point. Prefer the
-	// top-level lakeorm.Query[T] / QueryStream[T] / QueryFirst[T]
-	// helpers when T is known at compile time.
-	Query(ctx context.Context) QueryBuilder
+	// Driver returns the underlying driver. Callers type-assert to
+	// the concrete driver type to reach per-driver conversion
+	// helpers (spark.Driver.FromSQL, duckdb.Driver.FromRows, etc.)
+	// or the raw native handle (spark.Driver.Session,
+	// duckdb.Driver.DB).
+	//
+	// The reason Client exposes this instead of wrapping every
+	// driver-specific helper behind a Client method is that read
+	// grammar is driver-specific: a Spark DataFrame and a *sql.Rows
+	// have different acquisition shapes, and hiding that costs the
+	// caller power without buying portability.
+	Driver() Driver
 
 	// Exec runs a raw SQL statement that returns no rows (DDL, DML
 	// that the typed surface doesn't cover).
 	Exec(ctx context.Context, sql string, args ...any) (ExecResult, error)
-
-	// DataFrame is the escape hatch for CQRS reads — hand a SQL
-	// string in, get a driver-agnostic DataFrame back, then
-	// materialise with lakeorm.CollectAs[T] / StreamAs[T] / FirstAs[T].
-	DataFrame(ctx context.Context, sql string, args ...any) (DataFrame, error)
 
 	// Migrate is the bootstrap path — idempotent CREATE TABLE IF NOT
 	// EXISTS derived from struct tags. Sufficient for dev and fresh
@@ -59,7 +70,7 @@ type Client interface {
 	// can detect post-generation edits.
 	//
 	// Returns the list of generated file paths.
-	MigrateGenerate(ctx context.Context, dir string, structs ...any) ([]string, error)
+	MigrateGenerate(ctx context.Context, dir string, models ...any) ([]string, error)
 
 	// CleanupStaging walks the Backend's _staging/ namespace and
 	// deletes prefixes older than olderThan. Intended as a periodic

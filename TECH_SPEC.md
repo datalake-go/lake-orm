@@ -174,15 +174,29 @@ level=error ingest_id=01928abc-... result=abort cause="driver: execute: connecti
 
 A single grep for `ingest_id=<uuid>` finds every event related to one operation across staging upload, driver execute, finalizer commit/abort, and any subsequent cleanup delete.
 
-## Reading: Query + DataFrame
+## Reading: Query[T] + drivers.Convertible
 
-Queries go through a separate surface:
+Reads go through a separate surface built on the `drivers.Convertible` capability every driver implements. The top-level helpers take a driver-native `drivers.Source` closure and decode each row into the caller-supplied Go struct:
 
-- `lakeorm.QueryStream[T](ctx, db, sql, args...)` — typed, constant-memory iteration. The struct's `spark:"..."` tags bind result columns to fields.
-- `lakeorm.Query[T](ctx, db, sql, args...) (returns []T)` — typed, buffered.
-- `db.DataFrame(ctx, sql, args...)` — escape hatch to the raw DataFrame. Feed into `lakeorm.CollectAs[T]` / `lakeorm.StreamAs[T]` for joins and aggregates with a purpose-built result-shape struct; reach for `df.DriverType()` only when you need a driver-native op the helpers don't cover.
+- `lakeorm.Query[T](ctx, db, source)` — typed, buffered. Returns `[]T`.
+- `lakeorm.QueryStream[T](ctx, db, source)` — typed, constant-memory `iter.Seq2[T, error]`.
+- `lakeorm.QueryFirst[T](ctx, db, source)` — returns `*T, nil` or `lkerrors.ErrNoRows`.
 
-See [`examples/joins/`](examples/joins/main.go) and [`examples/stream/`](examples/stream/main.go) for the advocated patterns. The CQRS framing (distinct read / write type contracts) is discussed in the [README](README.md#reads-and-writes-are-shaped-differently-on-purpose).
+Build the `Source` with the concrete driver's conversion helper. Reach the driver via `Client.Driver()`:
+
+```go
+drv := db.Driver().(*spark.Driver)
+users, _ := lakeorm.Query[User](ctx, db, drv.FromSQL("SELECT * FROM users WHERE country = ?", "UK"))
+```
+
+Per-driver helpers:
+
+- `*spark.Driver`: `FromSQL`, `FromDataFrame`, `FromTable`, `FromRow`, `Session`.
+- `*duckdb.Driver` / `*databricks.Driver`: `FromSQL`, `FromRows`, `FromTable`, `FromRow`.
+
+For joins and aggregates, declare a purpose-built result-shape struct and feed the same `Query[T]` helper — the projection struct is the contract, `spark:"..."` tags bind result columns to fields. Anything the helpers don't cover can be expressed as a bare `drivers.Source` closure.
+
+See [`examples/arbitrary_spark_query/`](examples/arbitrary_spark_query/main.go) for a native Spark DataFrame chain decoded into a projection struct, [`examples/joins/`](examples/joins/main.go) for SQL-joined CQRS reads, and [`examples/stream/`](examples/stream/main.go) for the constant-memory streaming pattern.
 
 ## See also
 

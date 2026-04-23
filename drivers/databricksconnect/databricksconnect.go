@@ -36,13 +36,17 @@ import (
 
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
 
-	"github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/drivers/spark"
 )
 
-// Driver returns a lakeorm.Driver that connects to a Databricks
-// workspace via Spark Connect. Accepts OAuth M2M or PAT credentials
-// through the Auth interface:
+// Driver returns a *spark.Driver connected to a Databricks
+// workspace via Spark Connect. The concrete *spark.Driver type is
+// exposed (rather than lakeorm.Driver) so callers can reach the
+// per-driver conversion helpers (FromSQL, FromDataFrame, FromTable,
+// FromRow) and the raw session (Session) via a Client.Driver()
+// type-assertion.
+//
+// Accepts OAuth M2M or PAT credentials through the Auth interface:
 //
 //	drv := databricksconnect.Driver(databricksconnect.OAuthM2M{
 //	    WorkspaceURL: "https://acme.cloud.databricks.com",
@@ -55,7 +59,7 @@ import (
 // Options like WithLogger / WithPoolSize / WithSessionConfs from
 // driver/spark work the same here — they tune the shared driver +
 // session-pool plumbing.
-func Driver(auth Auth, opts ...spark.RemoteOption) lakeorm.Driver {
+func Driver(auth Auth, opts ...spark.RemoteOption) *spark.Driver {
 	factory := sessionFactory(auth)
 	return spark.FromFactory("databricks-connect", factory, opts...)
 }

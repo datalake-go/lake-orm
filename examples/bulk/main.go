@@ -67,11 +67,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(
-		spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")),
-		iceberg.Dialect(),
-		store,
-	)
+	drv := spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002"))
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -103,15 +100,15 @@ func main() {
 	}
 	fmt.Printf("inserted %d rows via object storage in %s\n", N, time.Since(start))
 
-	df, err := db.DataFrame(ctx, `SELECT COUNT(*) AS n FROM metrics`)
-	if err != nil {
-		log.Fatalf("DataFrame: %v", err)
+	type Count struct {
+		N int64 `lake:"n"`
 	}
-	n, err := df.Count(ctx)
+	total, err := lakeorm.QueryFirst[Count](ctx, db,
+		drv.FromSQL(`SELECT COUNT(*) AS n FROM metrics`))
 	if err != nil {
 		log.Fatalf("Count: %v", err)
 	}
-	fmt.Printf("metrics table now contains %d rows\n", n)
+	fmt.Printf("metrics table now contains %d rows\n", total.N)
 }
 
 func envOr(key, def string) string {

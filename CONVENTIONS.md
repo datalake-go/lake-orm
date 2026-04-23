@@ -181,11 +181,13 @@ The root `lakeorm` package advertises exactly what `README.md` and `examples/` d
 
 **On the root SDK surface:**
 
-- `Client` interface + `Open()` constructor
-- `Query[T]` / `QueryStream[T]` / `QueryFirst[T]` + `CollectAs[T]` / `StreamAs[T]` / `FirstAs[T]`
+- `Client` interface + `Open()` constructor + `Client.Driver()` accessor
+- `Query[T]` / `QueryStream[T]` / `QueryFirst[T]` over `drivers.Source`
+- `drivers.Source` + `drivers.Convertible` contract in `drivers/drivers.go`
 - `structs.Validate` / `structs.FromJSON[T]` / `structs.FromJSONReader[T]` / `structs.TableNamer`
 - `backends.S3` / `backends.GCS` / `backends.File` / `backends.Memory`
-- `drivers/spark.Remote`, `drivers/duckdb.Driver`, `drivers/databricks.Driver`, `drivers/databricksconnect.Driver`
+- `drivers/spark.Remote`, `drivers/duckdb.New`, `drivers/databricks.New`, `drivers/databricksconnect.Driver`
+- Per-driver `FromSQL` / `FromDataFrame` / `FromTable` / `FromRow` / `FromRows` / `Session` / `DB` on the concrete `*Driver` types
 - `dialects/iceberg.Dialect`, `dialects/delta.Dialect`, `dialects/duckdb.Dialect`
 - `errors.Err*` + `errors.NewErr*` + `errors.IsErr*`
 - `types.IngestID`, `types.SortableID`, `types.Location`, `types.SystemIngestIDColumn`
@@ -204,10 +206,10 @@ The root `lakeorm` package advertises exactly what `README.md` and `examples/` d
 **Concrete candidates to reap in future PRs** (updated as the surface gets reviewed):
 
 - ~~`types.SparkTableName` / `types.ParseSparkTableName`~~ — reaped: zero callers, never on contract.
-- `ExecutionPlan` / `PlanKind` / `StagingRef` / `WriteRequest` / `QueryRequest` / `OrderSpec` / `NewOrderSpec` / `WritePath` at root — driver-contract types users never touch. Move to `drivers/` when the Driver interface moves there.
-- `DataFrame` / `Row` / `RowStream` / `ColumnInfo` at root — going away with the Convertible restructure; the interface was a forced abstraction each driver had to implement whether or not it had a native DataFrame concept.
-- `QueryBuilder` / `Client.Query(ctx)` / `dynamicQuery` — going away with the Convertible restructure; the typed `Query[T]` family is the only documented read path.
-- `Client.DataFrame(ctx, sql, args)` — same; raw escape hatch moves to `Client.Driver()` + concrete type-assert.
+- ~~`DataFrame` / `Row` / `RowStream` / `ColumnInfo` at root~~ — reaped in phase-2f with the Convertible restructure; the interface was a forced abstraction each driver had to implement whether or not it had a native DataFrame concept.
+- ~~`QueryBuilder` / `Client.Query(ctx)` / `dynamicQuery` / `Client.DataFrame(ctx, sql, args)`~~ — reaped in phase-2f with the Convertible restructure; the typed `Query[T]` family over `drivers.Source` is the only documented read path.
+- ~~`Driver.DataFrame` / `Driver.ExecuteStreaming`~~ — reaped in phase-2f; the read-side lives on `drivers.Convertible`, which is an optional driver capability.
+- `ExecutionPlan` / `PlanKind` / `StagingRef` / `WriteRequest` / `QueryRequest` / `OrderSpec` / `NewOrderSpec` / `WritePath` at root — driver-contract types users never touch. Move to `drivers/` when the Driver interface moves there (phase-2g).
 - `drivers/spark.SessionPool` — impl detail; users never construct session pools themselves, they let `Remote()` do it.
 
 **Why this matters.** Every public identifier is a contract — a promise that its signature, semantics, and behaviour won't change without a major version bump. More public identifiers means more promises to keep, which means more churn, deprecation shims, and "we can't fix this because it'd break user X" conversations later. Keeping the surface small keeps the promises small. If nothing outside the repo uses `internal/scanner.NewScanner`, it has zero users constraining it — the library is free to change its signature, its decoding strategy, its whole existence, without notice.

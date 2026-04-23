@@ -11,6 +11,7 @@ import (
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -26,7 +27,9 @@ type User struct {
 
 // TestE2E_Migrate_InsertSmall_Stream is the minimum-viable e2e test:
 // stand up the full stack, migrate the User table, insert a small
-// batch through the gRPC path, stream it back.
+// batch through the gRPC path, stream it back. The test binds to
+// the concrete *spark.Driver returned by openClientForE2E so it can
+// build the drivers.Source via drv.FromSQL.
 //
 // Skipped (not failed) when the Spark Connect testcontainer image
 // isn't available — most CI setups won't have a pre-baked
@@ -35,7 +38,7 @@ type User struct {
 // against a long-lived docker-compose stack by setting
 // DORM_SPARK_URI and DORM_S3_DSN.
 func TestE2E_Migrate_InsertSmall_Stream(t *testing.T) {
-	db := openClientForE2E(t)
+	db, drv := openClientForE2E(t)
 	if db == nil {
 		return // openClientForE2E has already called t.Skip
 	}
@@ -60,7 +63,7 @@ func TestE2E_Migrate_InsertSmall_Stream(t *testing.T) {
 
 	seen := map[string]bool{}
 	for u, err := range lakeorm.QueryStream[User](
-		ctx, db, `SELECT * FROM users WHERE country = ?`, "UK",
+		ctx, db, drv.FromSQL(`SELECT * FROM users WHERE country = ?`, "UK"),
 	) {
 		if err != nil {
 			t.Fatalf("stream: %v", err)
@@ -77,7 +80,7 @@ func TestE2E_Migrate_InsertSmall_Stream(t *testing.T) {
 // docker-compose stack) or skips if unset. Testcontainer startup for
 // Spark Connect is gated behind a future dorm-spark-connect image
 // because stock apache/spark startup is too slow for CI.
-func openClientForE2E(t *testing.T) lakeorm.Client {
+func openClientForE2E(t *testing.T) (lakeorm.Client, *spark.Driver) {
 	t.Helper()
 
 	sparkURI := envOr(t, "DORM_SPARK_URI", "")
@@ -91,13 +94,10 @@ func openClientForE2E(t *testing.T) lakeorm.Client {
 	if err != nil {
 		t.Fatalf("backends.S3(%q): %v", s3DSN, err)
 	}
-	db, err := lakeorm.Open(
-		spark.Remote(sparkURI),
-		iceberg.Dialect(),
-		store,
-	)
+	drv := spark.Remote(sparkURI)
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		t.Fatalf("lakeorm.Open: %v", err)
 	}
-	return db
+	return db, drv
 }
