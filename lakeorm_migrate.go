@@ -12,6 +12,43 @@ import (
 	"github.com/datalake-go/lake-orm/structs"
 )
 
+// Migrate is the bootstrap path — creates one table per model via
+// idempotent CREATE TABLE IF NOT EXISTS DDL produced by the Dialect.
+// Sufficient for dev and fresh tables; ALTER TABLE-shaped schema
+// evolution goes through MigrateGenerate + lake-goose.
+func (c *client) Migrate(ctx context.Context, models ...any) error {
+	// Ensure the target database exists before creating tables.
+	// Iceberg REST catalogs (Nessie / Polaris / Tabular) require the
+	// namespace to be explicitly registered before CREATE TABLE; Hive
+	// catalogs tolerate an implicit default. CREATE NAMESPACE IF NOT
+	// EXISTS is the portable shape that works for both. The "lakeorm"
+	// prefix matches the catalog name docker-compose / lake-k8s
+	// configures; v1 promotes this to Dialect.EnsureNamespace so the
+	// hardcoded prefix goes away.
+	if db := c.cfg.defaultDatabase; db != "" && c.dialect.Name() == "iceberg" {
+		ns := "lakeorm." + db
+		if _, err := c.driver.Exec(ctx, "CREATE NAMESPACE IF NOT EXISTS "+ns); err != nil {
+			return fmt.Errorf("lakeorm.Migrate: ensure namespace %s: %w", ns, err)
+		}
+	}
+
+	for _, m := range models {
+		schema, err := structs.ParseSchema(reflectTypeOf(m))
+		if err != nil {
+			return err
+		}
+		loc := c.backend.TableLocation(schema.TableName)
+		ddl, err := c.dialect.CreateTableDDL(schema, loc)
+		if err != nil {
+			return err
+		}
+		if _, err := c.driver.Exec(ctx, ddl); err != nil {
+			return fmt.Errorf("lakeorm.Migrate %s: %w", schema.TableName, err)
+		}
+	}
+	return nil
+}
+
 // MigrateGenerate writes one goose-format .sql file per struct with
 // pending changes into dir, plus a lakeorm.sum manifest at the dir
 // root. Does not execute the migrations — that's lake-goose's job

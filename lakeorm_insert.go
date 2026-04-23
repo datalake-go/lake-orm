@@ -12,7 +12,91 @@ import (
 	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/internal/parquet"
 	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/types"
 )
+
+// Insert is the Client's write entry point. It generates the
+// per-operation UUIDv7 ingest_id up front (used as staging prefix
+// key, janitor filter, and MERGE filter predicate), runs validation,
+// lets the Dialect plan the route (direct / parquet append /
+// parquet merge), and then either runs the fast path locally or
+// hands the plan straight to the driver.
+func (c *client) Insert(ctx context.Context, records any, opts ...InsertOption) error {
+	ic := &insertConfig{}
+	for _, o := range opts {
+		o(ic)
+	}
+
+	schema, n, approx, err := schemaFromRecords(records)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return nil
+	}
+
+	// Generate the per-operation ingest_id up-front. Used as:
+	//   - staging prefix key (<warehouse>/<ingest_id>/part-*.parquet)
+	//   - janitor filter (UUIDv7 embeds a ms timestamp)
+	//   - MERGE filter on the parquet-staging source to bound the
+	//     upsert scope and make retry-on-OCC-conflict idempotent
+	//
+	// UUIDv7 so the staging prefix is time-sortable and
+	// CleanupStaging can identify orphans by parsing the embedded
+	// ms-precision timestamp.
+	ingestID, err := types.NewIngestID()
+	if err != nil {
+		return fmt.Errorf("lakeorm.Insert: generate ingest_id: %w", err)
+	}
+
+	if err := structs.Validate(records); err != nil {
+		return err
+	}
+
+	// idempotency is the caller-visible dedup token and stays
+	// separate from the ingest_id. Empty when the caller doesn't
+	// supply one; Dialect implementations may synthesize if they need
+	// a stable token, but the staging prefix uses ingestID.
+	idem := ic.idempotencyKey
+
+	plan, err := c.dialect.PlanInsert(drivers.WriteRequest{
+		Ctx:            ctx,
+		Schema:         schema,
+		IngestID:       ingestID.String(),
+		Records:        records,
+		RecordCount:    n,
+		ApproxRowBytes: approx,
+		Idempotency:    idem,
+		Backend:        c.backend,
+		FastPathBytes:  c.cfg.fastPathThreshold,
+		ForcePath:      ic.path,
+	})
+	if err != nil {
+		return fmt.Errorf("lakeorm.Insert: plan: %w", err)
+	}
+
+	switch plan.Kind {
+	case drivers.KindParquetIngest, drivers.KindParquetMerge:
+		// Both variants ride the same staging-writer + commit path;
+		// the difference is the SQL the driver emits on Execute
+		// (INSERT INTO ... vs MERGE INTO ...). Staging behaviour,
+		// row conversion, and finalizer lifecycle are identical.
+		return c.runFastPath(ctx, plan, schema, records)
+	default:
+		res, fin, err := c.driver.Execute(ctx, plan)
+		_ = res
+		if err != nil {
+			if fin != nil {
+				_ = fin.Abort(ctx)
+			}
+			return err
+		}
+		if fin != nil {
+			return fin.Commit(ctx)
+		}
+		return nil
+	}
+}
 
 // runFastPath executes a KindParquetIngest plan: stream records
 // through the parquet partition writer, flush every part, then hand

@@ -197,7 +197,6 @@ The root `lakeorm` package advertises exactly what `README.md` and `examples/` d
 - `internal/scanner` — row-to-struct reflection scanner
 - `internal/parquet` — parquet schema synthesis and partition writer
 - `internal/migrations` — diff + classify + emit goose files
-- `internal/sqlbuild` — SELECT-clause builder
 
 **Rule of thumb:** if no external example, README section, or wiki page calls the identifier, it's internal. Tests don't count — tests can live inside the internal package.
 
