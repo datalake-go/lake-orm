@@ -31,7 +31,6 @@ lake-orm/
   lakeorm.go
   lakeorm_client.go
   lakeorm_client_impl.go
-  lakeorm_dataframe.go
   lakeorm_driver.go
   lakeorm_migrate.go
   lakeorm_insert.go
@@ -44,14 +43,6 @@ structs/
   struct_validate.go
   struct_json.go
   struct_errors.go
-
-drivers/spark/
-  driver_spark.go
-  driver_spark_remote.go
-  driver_spark_cluster.go
-  driver_spark_session.go
-  driver_spark_sql.go
-  driver_spark_factory.go
 
 internal/migrations/
   migrations.go
@@ -67,18 +58,37 @@ internal/migrations/
 errors/
   errors.go
   error_cluster_not_ready.go
-
-types/
-  type_ingest_id.go
-  type_object.go
-  type_sortable_id.go
-  type_system_columns.go
-  type_table_name.go
 ```
 
-**Package root file** (the one named after the package itself — `lakeorm.go`, `structs.go`, `migrations.go`) holds the package doc and, if short, entry-point functions. Everything else goes in a prefixed sibling.
+**The mixed shape — family prefix *and* bare names, same package.** Some packages carry a dominant family plus one-off helpers that aren't part of it. `drivers/spark/` is the canonical example:
 
-**Nuance — prefix when there's a family, not when the file IS the concept.** Inside `types/` each file IS the top-level concept (ingest_id, location, sortable_id), so `ingest_id.go` is the right name — a `type_ingest_id.go` prefix is redundant because the package is already `types`. Inside `drivers/spark/`, `driver_spark.go` and `driver_spark_remote.go` belong to a family (there are multiple driver variants), so the prefix disambiguates within the family. A good test: if you split the concept across multiple files, those files should share a prefix (`cluster.go` + `cluster_helpers.go`, not `cluster.go` + `helpers.go`). If the concept lives in one file, bare name.
+```
+drivers/spark/
+  driver.go                         ← bare: the Driver struct itself, one file
+  driver_spark_convertible.go       ← family: drivers.Convertible impl
+  driver_spark_conversions.go       ← family: FromSQL / FromDataFrame / FromTable / FromRow helpers
+  driver_spark_remote.go            ← family: spark.Remote constructor
+  driver_spark_factory.go           ← family: spark.FromFactory constructor
+  cluster.go                        ← bare: cluster-not-ready error translation, one file
+  session.go                        ← bare: session pool, one file
+  sql.go                            ← bare: renderSQL helper, one file
+```
+
+Why the mix: `driver_spark_*` names the *driver family* — every file in that prefix is a facet of "how the Spark driver is built." The prefix lets `ls drivers/spark/driver_spark_*` enumerate the whole family in one glance. Outside that family live three concepts that aren't "part of the driver" — the session pool, the cluster-error translator, the SQL renderer. Each of those concepts is one file with no siblings. Prefixing them `spark_cluster.go` / `spark_session.go` / `spark_sql.go` would buy nothing (the package is already `spark` — the prefix would be redundant) and would falsely imply a family exists. A good test: *if you split this concept across multiple files tomorrow, would the split files share a prefix?* If yes, start with the prefix now. If the concept is one file, bare name.
+
+The same logic governs `types/` — every file there IS the top-level concept it names (ingest_id, location, sortable_id, system_columns), no families, so every file is bare:
+
+```
+types/
+  ingest_id.go
+  object.go
+  sortable_id.go
+  system_columns.go
+```
+
+**Package root file** (the one named after the package itself — `lakeorm.go`, `structs.go`, `migrations.go`) holds the package doc and, if short, entry-point functions. Everything else goes in a prefixed sibling when it's part of a family, a bare-named sibling when it's a standalone concept.
+
+**Nuance — prefix when there's a family, not when the file IS the concept.** Inside `types/` each file IS the top-level concept (ingest_id, location, sortable_id), so `ingest_id.go` is the right name — a `type_ingest_id.go` prefix is redundant because the package is already `types`. Inside `drivers/spark/`, `driver_spark.go` and `driver_spark_remote.go` belong to a family (there are multiple driver variants + conversion helpers + constructors), so the prefix disambiguates within the family.
 
 **Why this matters.** You shouldn't need to open a file to know which family it belongs to. `ls drivers/spark/driver_spark_*` tells you the driver family's files in one glance; you read them in order, you skip the rest. `grep -rn "^package migrations"` lands on every migration-related file in one command. Without the prefix you're guessing from bare filenames (`cluster.go` — cluster of what?), opening speculatively, and bouncing back out.
 
