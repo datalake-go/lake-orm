@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -31,11 +32,12 @@ type UserOrderTotal struct {
 }
 
 // TestE2E_Join_TypedScan covers the CQRS-style read path end-to-end:
-// write via dorm-tagged entities, read via SQL join + unwrap the
-// underlying sparksql.DataFrame + sparksql.Collect[T] into a
-// spark-tagged result-shape struct.
+// write via spark-tagged entities, read via SQL join through
+// drv.FromSQL + lakeorm.Query[T] into a spark-tagged result-shape
+// struct. The projection struct is the contract — the write-side
+// User / Order don't appear in the result type.
 func TestE2E_Join_TypedScan(t *testing.T) {
-	db := openClientForE2E(t)
+	db, drv := openClientForE2E(t)
 	if db == nil {
 		return
 	}
@@ -80,14 +82,10 @@ func TestE2E_Join_TypedScan(t *testing.T) {
 		WHERE u.id IN (?, ?)
 		GROUP BY u.id, u.email`
 
-	df, err := db.DataFrame(ctx, sql, string(alice.ID), string(bob.ID))
+	results, err := lakeorm.Query[UserOrderTotal](ctx, db,
+		drv.FromSQL(sql, string(alice.ID), string(bob.ID)))
 	if err != nil {
-		t.Fatalf("DataFrame: %v", err)
-	}
-
-	results, err := lakeorm.CollectAs[UserOrderTotal](ctx, df)
-	if err != nil {
-		t.Fatalf("CollectAs: %v", err)
+		t.Fatalf("Query: %v", err)
 	}
 
 	byEmail := map[string]UserOrderTotal{}
@@ -106,7 +104,7 @@ func TestE2E_Join_TypedScan(t *testing.T) {
 // the same stack — the constant-memory iter.Seq2 path users reach
 // for when the result doesn't need a join.
 func TestE2E_Stream_TypedQuery(t *testing.T) {
-	db := openClientForE2E(t)
+	db, drv := openClientForE2E(t)
 	if db == nil {
 		return
 	}
@@ -132,7 +130,7 @@ func TestE2E_Stream_TypedQuery(t *testing.T) {
 	var seen int
 	for u, err := range lakeorm.QueryStream[User](
 		ctx, db,
-		`SELECT * FROM users WHERE email LIKE ?`, "stream-%@example.com",
+		drv.FromSQL(`SELECT * FROM users WHERE email LIKE ?`, "stream-%@example.com"),
 	) {
 		if err != nil {
 			t.Fatalf("Stream: %v", err)

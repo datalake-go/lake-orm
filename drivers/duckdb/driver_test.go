@@ -22,21 +22,23 @@ type user struct {
 
 // openEmbedded stands up the full lakeorm stack against embedded
 // DuckDB + an in-memory object-storage backend. Zero external
-// dependencies; <1s per test.
-func openEmbedded(t *testing.T) lakeorm.Client {
+// dependencies; <1s per test. Returns the *Driver alongside the
+// Client so tests can build Source closures via drv.FromSQL.
+func openEmbedded(t *testing.T) (lakeorm.Client, *ddriver.Driver) {
 	t.Helper()
 	db := testutils.DuckDB(t)
 	store := backends.Memory("duckdb-driver-test")
-	client, err := lakeorm.Open(ddriver.Driver(db), ddialect.Dialect(), store)
+	drv := ddriver.New(db)
+	client, err := lakeorm.Open(drv, ddialect.Dialect(), store)
 	if err != nil {
 		t.Fatalf("lakeorm.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	return client
+	return client, drv
 }
 
 func TestDriver_MigrateInsertQueryRoundTrip(t *testing.T) {
-	client := openEmbedded(t)
+	client, drv := openEmbedded(t)
 	ctx := context.Background()
 
 	if err := client.Migrate(ctx, &user{}); err != nil {
@@ -54,7 +56,7 @@ func TestDriver_MigrateInsertQueryRoundTrip(t *testing.T) {
 	}
 
 	got, err := lakeorm.Query[user](ctx, client,
-		`SELECT id, email, country, created_at FROM users WHERE country = ? ORDER BY email`, "UK")
+		drv.FromSQL(`SELECT id, email, country, created_at FROM users WHERE country = ? ORDER BY email`, "UK"))
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -67,8 +69,8 @@ func TestDriver_MigrateInsertQueryRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDriver_DataFrameCount(t *testing.T) {
-	client := openEmbedded(t)
+func TestDriver_AggregateProjection(t *testing.T) {
+	client, drv := openEmbedded(t)
 	ctx := context.Background()
 
 	if err := client.Migrate(ctx, &user{}); err != nil {
@@ -82,16 +84,17 @@ func TestDriver_DataFrameCount(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	df, err := client.DataFrame(ctx, `SELECT country, COUNT(*) AS n FROM users GROUP BY country`)
-	if err != nil {
-		t.Fatalf("DataFrame: %v", err)
+	type countryCount struct {
+		Country string `lake:"country"`
+		N       int64  `lake:"n"`
 	}
-	n, err := df.Count(ctx)
+	rows, err := lakeorm.Query[countryCount](ctx, client,
+		drv.FromSQL(`SELECT country, COUNT(*) AS n FROM users GROUP BY country`))
 	if err != nil {
-		t.Fatalf("Count: %v", err)
+		t.Fatalf("Query: %v", err)
 	}
-	if n != 2 {
-		t.Errorf("Count = %d, want 2", n)
+	if len(rows) != 2 {
+		t.Errorf("got %d rows, want 2", len(rows))
 	}
 }
 
@@ -100,7 +103,7 @@ func TestDriver_DataFrameCount(t *testing.T) {
 // system-managed _ingest_id column. Without this, MERGE (Phase 2b)
 // can't scope its source to a single batch.
 func TestDriver_StampsIngestIDOnEveryRow(t *testing.T) {
-	client := openEmbedded(t)
+	client, drv := openEmbedded(t)
 	ctx := context.Background()
 
 	if err := client.Migrate(ctx, &user{}); err != nil {
@@ -116,7 +119,7 @@ func TestDriver_StampsIngestIDOnEveryRow(t *testing.T) {
 	type ingestRow struct {
 		IngestID string `lake:"_ingest_id"`
 	}
-	rows, err := lakeorm.Query[ingestRow](ctx, client, `SELECT _ingest_id FROM users`)
+	rows, err := lakeorm.Query[ingestRow](ctx, client, drv.FromSQL(`SELECT _ingest_id FROM users`))
 	if err != nil {
 		t.Fatalf("Query _ingest_id: %v", err)
 	}
@@ -134,7 +137,7 @@ func TestDriver_StampsIngestIDOnEveryRow(t *testing.T) {
 }
 
 func TestDriver_EmptyInsertIsNoop(t *testing.T) {
-	client := openEmbedded(t)
+	client, _ := openEmbedded(t)
 	ctx := context.Background()
 
 	if err := client.Migrate(ctx, &user{}); err != nil {

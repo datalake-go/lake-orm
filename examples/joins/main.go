@@ -10,10 +10,10 @@
 //
 //   - Writes go through lake-tagged entities (User, Order below).
 //     The struct is the source of truth for the persisted schema.
-//   - Reads that involve joins or aggregates go through the fork's
-//     raw DataFrame (Spark SQL here, DataFrame builder optional),
-//     then scan the result shape into a purpose-built output struct
-//     carrying `spark:"..."` tags.
+//   - Reads that involve joins or aggregates go through Query[T]
+//     with a driver-native Source (drv.FromSQL here); the result
+//     shape is declared on a purpose-built output struct carrying
+//     `spark:"..."` tags.
 //   - The output type is the *contract*, not a pre-declared wrapper.
 //     One write-side struct per table, one read-side struct per
 //     projection you care about. Unified ORM mappings collapse under
@@ -77,7 +77,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(spark.Remote(sparkURI), iceberg.Dialect(), store)
+	drv := spark.Remote(sparkURI)
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -127,17 +128,12 @@ func main() {
 		GROUP BY u.id, u.email
 		ORDER BY total_pence DESC`
 
-	df, err := db.DataFrame(ctx, sql)
+	// One-line typed scan via lakeorm.Query[T] + drv.FromSQL. The
+	// spark:"..." tags on UserOrderTotal bind result columns to
+	// fields; lake-orm's reflection scanner does the rest.
+	results, err := lakeorm.Query[UserOrderTotal](ctx, db, drv.FromSQL(sql))
 	if err != nil {
-		log.Fatalf("dataframe: %v", err)
-	}
-
-	// One-line typed scan via lakeorm.CollectAs[T]. The spark:"..."
-	// tags on UserOrderTotal bind result columns to fields; the
-	// helper hides the DriverType() type-assertion from call sites.
-	results, err := lakeorm.CollectAs[UserOrderTotal](ctx, df)
-	if err != nil {
-		log.Fatalf("collect: %v", err)
+		log.Fatalf("query: %v", err)
 	}
 
 	for _, r := range results {

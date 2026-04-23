@@ -1,28 +1,26 @@
-// Example: the typed helper API — Query[T] / QueryStream[T] /
-// QueryFirst[T] and their DataFrame-shaped siblings CollectAs[T] /
-// StreamAs[T] / FirstAs[T].
+// Example: the typed read API — Query[T] / QueryStream[T] /
+// QueryFirst[T] — built on the drivers.Convertible capability and
+// per-driver From* conversion helpers.
 //
 //	make docker-up
 //	go run ./examples/typed-helpers
 //
-// lake-orm keeps the core DataFrame surface untyped on purpose —
-// joins and aggregates produce row shapes that no single "write-side
-// struct" can represent. The typed helpers are thin generic wrappers
-// over that untyped core, applied at the materialisation edge where
-// you declare the shape you want.
+// lake-orm separates writes from reads (CQRS). Writes bind to
+// persisted types via Insert; reads run through a driver-native
+// Source closure that the root Query[T] helpers decode into any
+// result-shape struct — persisted or projection. Build the Source
+// with the driver's own conversion helper (drv.FromSQL, drv.FromTable,
+// drv.FromDataFrame, ...).
 //
 //   - Query[T]       — materialises the full result as []T.
 //   - QueryStream[T] — iter.Seq2[T, error], one row at a time,
 //     constant memory.
 //   - QueryFirst[T]  — returns *T, nil if empty, error otherwise.
-//   - CollectAs[T]   — the same for a DataFrame produced by
-//     db.DataFrame(ctx, sql).
-//   - StreamAs[T]    — streaming form of CollectAs.
-//   - FirstAs[T]     — first row only.
 //
-// CollectAs / StreamAs / FirstAs exist for the CQRS join case: when
-// you've dropped to a raw DataFrame to write the SQL for a join,
-// you still want the result typed against a result-shape struct.
+// The same three helpers cover the join / aggregate case: declare
+// a result-shape struct (like CountryCount below) and feed it to
+// Query[T]. No separate DataFrame surface; the projection struct
+// is the contract.
 package main
 
 import (
@@ -37,24 +35,25 @@ import (
 	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
 	"github.com/datalake-go/lake-orm/drivers/spark"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
 )
 
 // Write-side struct — one per persisted table.
 type User struct {
-	ID        types.SortableID `lake:"id,pk"`
-	Email     string           `lake:"email,required"`
-	Country   string           `lake:"country,required"`
-	CreatedAt time.Time        `lake:"created_at,auto=createTime"`
+	ID        types.SortableID `spark:"id,pk"`
+	Email     string           `spark:"email,required"`
+	Country   string           `spark:"country,required"`
+	CreatedAt time.Time        `spark:"created_at,auto=createTime"`
 }
 
 // Read-side struct — one per projection. Has no persisted
 // equivalent; only exists to shape the rows coming back from a
 // particular query.
 type CountryCount struct {
-	Country string `lake:"country"`
-	N       int64  `lake:"n"`
+	Country string `spark:"country"`
+	N       int64  `spark:"n"`
 }
 
 func main() {
@@ -67,11 +66,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(
-		spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002")),
-		iceberg.Dialect(),
-		store,
-	)
+	drv := spark.Remote(envOr("LAKEORM_SPARK_URI", "sc://localhost:15002"))
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -81,11 +77,15 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 	now := time.Now().Truncate(time.Microsecond)
-	if err := db.Insert(ctx, []*User{
+	seed := []*User{
 		{ID: types.NewSortableID(), Email: "a@example.com", Country: "UK", CreatedAt: now},
 		{ID: types.NewSortableID(), Email: "b@example.com", Country: "UK", CreatedAt: now},
 		{ID: types.NewSortableID(), Email: "c@example.com", Country: "US", CreatedAt: now},
-	}, lakeorm.ViaObjectStorage()); err != nil {
+	}
+	if err := structs.Validate(seed); err != nil {
+		log.Fatalf("validate: %v", err)
+	}
+	if err := db.Insert(ctx, seed, lakeorm.ViaObjectStorage()); err != nil {
 		log.Printf("insert: %v", err)
 	}
 
@@ -93,7 +93,7 @@ func main() {
 	//    set is small (bounded by LIMIT or a narrow predicate) and
 	//    the caller wants random access.
 	users, err := lakeorm.Query[User](ctx, db,
-		`SELECT * FROM users WHERE country = ? ORDER BY email`, "UK")
+		drv.FromSQL(`SELECT * FROM users WHERE country = ? ORDER BY email`, "UK"))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}
@@ -104,7 +104,7 @@ func main() {
 	//    caller processes-and-discards each row.
 	var n int
 	for u, err := range lakeorm.QueryStream[User](ctx, db,
-		`SELECT * FROM users ORDER BY created_at`) {
+		drv.FromSQL(`SELECT * FROM users ORDER BY created_at`)) {
 		if err != nil {
 			log.Fatalf("stream: %v", err)
 		}
@@ -116,7 +116,7 @@ func main() {
 	//    ErrNoRows wrapper on empty result so the caller can
 	//    errors.Is it instead of checking len == 0.
 	firstUS, err := lakeorm.QueryFirst[User](ctx, db,
-		`SELECT * FROM users WHERE country = ? ORDER BY created_at`, "US")
+		drv.FromSQL(`SELECT * FROM users WHERE country = ? ORDER BY created_at`, "US"))
 	switch {
 	case errors.Is(err, lkerrors.ErrNoRows):
 		fmt.Println("QueryFirst: no US users")
@@ -126,18 +126,13 @@ func main() {
 		fmt.Printf("QueryFirst: first US user is %s\n", firstUS.Email)
 	}
 
-	// 4. CollectAs[T] — the DataFrame flavour. Use when the SQL
-	//    involves joins / aggregates and the rows don't line up
-	//    with a persisted struct. The projection struct
-	//    CountryCount is the contract.
-	df, err := db.DataFrame(ctx,
-		`SELECT country, COUNT(*) AS n FROM users GROUP BY country ORDER BY n DESC`)
+	// 4. Join / aggregate into a result-shape struct. Same Query[T]
+	//    shape, different type — CountryCount is a projection that
+	//    no persisted table has. The projection struct is the contract.
+	counts, err := lakeorm.Query[CountryCount](ctx, db,
+		drv.FromSQL(`SELECT country, COUNT(*) AS n FROM users GROUP BY country ORDER BY n DESC`))
 	if err != nil {
-		log.Fatalf("DataFrame: %v", err)
-	}
-	counts, err := lakeorm.CollectAs[CountryCount](ctx, df)
-	if err != nil {
-		log.Fatalf("CollectAs: %v", err)
+		log.Fatalf("Query CountryCount: %v", err)
 	}
 	for _, c := range counts {
 		fmt.Printf("  country=%s n=%d\n", c.Country, c.N)

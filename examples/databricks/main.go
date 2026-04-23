@@ -86,7 +86,7 @@ func main() {
 	defer db.Close()
 
 	// Hand the *sql.DB to the lake-orm Databricks driver.
-	drv := databricks.Driver(db)
+	drv := databricks.New(db)
 
 	// Delta is the native Databricks table format.
 	store, err := backends.S3(os.Getenv("WAREHOUSE_URI"))
@@ -102,7 +102,7 @@ func main() {
 	// Same ORM surface as the Spark Connect drivers. Write-side
 	// struct bound by spark:"..." tags, read-side through Query[T].
 	users, err := lakeorm.Query[User](ctx, client,
-		`SELECT * FROM users WHERE country = ? LIMIT 50`, "UK")
+		drv.FromSQL(`SELECT * FROM users WHERE country = ? LIMIT 50`, "UK"))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}

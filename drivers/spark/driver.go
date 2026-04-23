@@ -7,20 +7,20 @@ package spark
 import (
 	"context"
 	"fmt"
-	"iter"
 	"strings"
 
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
 	"github.com/rs/zerolog"
 
 	"github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/types"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
+	"github.com/datalake-go/lake-orm/types"
 )
 
-// driver is the shared Spark Connect driver backing both Remote and
-// Databricks. It lives in an unexported type; users touch it via the
-// lakeorm.Driver interface.
+// Driver is the shared Spark Connect driver backing both Remote and
+// databricksconnect. Exported so callers can reach the per-driver
+// conversion helpers (FromSQL, FromDataFrame, FromTable, FromRow)
+// and the raw session (Session) via a Client.Driver() type assertion.
 //
 // Session-level confs (WithSessionConfs) are applied inside the pool
 // factory, not held on driver, so they survive pool refreshes and
@@ -201,59 +201,6 @@ func sanitizeIdent(s string) string {
 	return string(out)
 }
 
-// ExecuteStreaming implements lakeorm.Driver. Produces a pull-based row
-// stream backed by the Spark Connect client's StreamRows primitive
-// (SPARK-52780) — constant memory, natural backpressure.
-func (d *Driver) ExecuteStreaming(ctx context.Context, plan lakeorm.ExecutionPlan) (lakeorm.RowStream, error) {
-	s, err := d.pool.Borrow(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Render ? placeholders. Spark Connect's parameterized-SQL path
-	// exists but doesn't round-trip reliably through every Spark
-	// version we care about; inline quoting via renderSQL is the
-	// safer path and matches what Exec / DataFrame do. When the fork
-	// lands a stable posparameter binding, switch here first since
-	// stream reads are the high-throughput path.
-	rendered, err := renderSQL(plan.SQL, plan.Args)
-	if err != nil {
-		d.pool.Return(s)
-		return nil, err
-	}
-
-	df, err := s.Sql(ctx, rendered)
-	if err != nil {
-		d.pool.Return(s)
-		return nil, translateClusterError(err)
-	}
-
-	stream := &sparkRowStream{pool: d.pool, session: s, df: df, ctx: ctx}
-	return stream.iter(), nil
-}
-
-// DataFrame implements lakeorm.Driver. The escape hatch — returns a
-// DataFrame the caller can chain Spark operations on.
-func (d *Driver) DataFrame(ctx context.Context, sql string, args ...any) (lakeorm.DataFrame, error) {
-	s, err := d.pool.Borrow(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	rendered, err := renderSQL(sql, args)
-	if err != nil {
-		d.pool.Return(s)
-		return nil, err
-	}
-
-	df, err := s.Sql(ctx, rendered)
-	if err != nil {
-		d.pool.Return(s)
-		return nil, translateClusterError(err)
-	}
-	return &sparkDataFrame{pool: d.pool, session: s, df: df}, nil
-}
-
 // Exec implements lakeorm.Driver.Exec — fire-and-forget SQL for DDL or
 // one-off DML. Does not go through Dialect.
 func (d *Driver) Exec(ctx context.Context, sql string, args ...any) (lakeorm.ExecResult, error) {
@@ -345,98 +292,3 @@ func (f *parquetIngestFinalizer) Abort(ctx context.Context) error {
 	}
 	return f.backend.CleanupStaging(ctx, f.prefix)
 }
-
-// sparkRowStream wraps a Spark DataFrame's streaming iterator as a
-// lakeorm.RowStream. Each step pulls one logical row; the session is
-// returned to the pool when iteration finishes.
-type sparkRowStream struct {
-	pool    *SessionPool
-	session scsql.SparkSession
-	df      scsql.DataFrame
-	ctx     context.Context
-}
-
-func (s *sparkRowStream) iter() iter.Seq2[lakeorm.Row, error] {
-	return func(yield func(lakeorm.Row, error) bool) {
-		defer s.pool.Return(s.session)
-		// TODO(v0): when the fork lands with StreamRows exported, swap
-		// this Collect loop for the streaming primitive.
-		rows, err := s.df.Collect(s.ctx)
-		if err != nil {
-			yield(nil, translateClusterError(err))
-			return
-		}
-		cols, _ := s.df.Columns(s.ctx)
-		for _, r := range rows {
-			row := &sparkRow{values: r.Values(), columns: cols}
-			if !yield(row, nil) {
-				return
-			}
-		}
-	}
-}
-
-// sparkRow is the lakeorm.Row implementation over a Spark Connect Row.
-type sparkRow struct {
-	values  []any
-	columns []string
-}
-
-func (r *sparkRow) Values() []any     { return r.values }
-func (r *sparkRow) Columns() []string { return r.columns }
-
-// sparkDataFrame is the lakeorm.DataFrame wrapper.
-type sparkDataFrame struct {
-	pool    *SessionPool
-	session scsql.SparkSession
-	df      scsql.DataFrame
-	closed  bool
-}
-
-func (d *sparkDataFrame) release() {
-	if d.closed {
-		return
-	}
-	d.pool.Return(d.session)
-	d.closed = true
-}
-
-func (d *sparkDataFrame) Schema(ctx context.Context) ([]lakeorm.ColumnInfo, error) {
-	cols, err := d.df.Columns(ctx)
-	if err != nil {
-		return nil, translateClusterError(err)
-	}
-	out := make([]lakeorm.ColumnInfo, len(cols))
-	for i, c := range cols {
-		out[i] = lakeorm.ColumnInfo{Name: c}
-	}
-	return out, nil
-}
-
-func (d *sparkDataFrame) Collect(ctx context.Context) ([][]any, error) {
-	defer d.release()
-	rows, err := d.df.Collect(ctx)
-	if err != nil {
-		return nil, translateClusterError(err)
-	}
-	out := make([][]any, len(rows))
-	for i, r := range rows {
-		out[i] = r.Values()
-	}
-	return out, nil
-}
-
-func (d *sparkDataFrame) Count(ctx context.Context) (int64, error) {
-	defer d.release()
-	n, err := d.df.Count(ctx)
-	if err != nil {
-		return 0, translateClusterError(err)
-	}
-	return n, nil
-}
-
-func (d *sparkDataFrame) Stream(ctx context.Context) iter.Seq2[lakeorm.Row, error] {
-	return (&sparkRowStream{pool: d.pool, session: d.session, df: d.df, ctx: ctx}).iter()
-}
-
-func (d *sparkDataFrame) DriverType() any { return d.df }

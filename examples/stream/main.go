@@ -53,7 +53,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("backends.S3: %v", err)
 	}
-	db, err := lakeorm.Open(spark.Remote(sparkURI), iceberg.Dialect(), store)
+	drv := spark.Remote(sparkURI)
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -84,8 +85,9 @@ func main() {
 	var count int
 	for user, err := range lakeorm.QueryStream[User](
 		ctx, db,
-		`SELECT * FROM users WHERE country = ? ORDER BY created_at DESC`,
-		"UK",
+		drv.FromSQL(
+			`SELECT * FROM users WHERE country = ? ORDER BY created_at DESC`,
+			"UK"),
 	) {
 		if err != nil {
 			log.Fatalf("stream: %v", err)

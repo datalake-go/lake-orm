@@ -5,15 +5,13 @@ import (
 	"fmt"
 
 	scsql "github.com/datalake-go/spark-connect-go/spark/sql"
-
-	"github.com/datalake-go/lake-orm"
 )
 
-// FromFactory builds a lakeorm.Driver around an arbitrary Spark
-// Connect session factory. Exported so sibling driver packages —
-// notably driver/databricksconnect — can reuse the full driver
-// machinery (session pool, conf application, Execute/Query/DataFrame
-// dispatch, cluster-not-ready translation) without duplicating it.
+// FromFactory builds a *Driver around an arbitrary Spark Connect
+// session factory. Exported so sibling driver packages — notably
+// driver/databricksconnect — can reuse the full driver machinery
+// (session pool, conf application, Execute dispatch, cluster-not-
+// ready translation) without duplicating it.
 //
 // `name` is returned verbatim from Driver.Name; "spark-remote" for
 // the plain Remote constructor, "databricks-connect" for the
@@ -33,7 +31,7 @@ func FromFactory(
 	name string,
 	factory func(context.Context) (scsql.SparkSession, error),
 	opts ...RemoteOption,
-) lakeorm.Driver {
+) *Driver {
 	cfg := newRemoteConfig()
 	for _, opt := range opts {
 		opt(cfg)

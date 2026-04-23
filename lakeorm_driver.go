@@ -4,9 +4,26 @@ import (
 	"context"
 )
 
-// Driver is the connection + execution mechanism. At v0 both concrete
-// Drivers are Spark Connect variants (spark.Remote, databricksconnect.Driver) —
-// same protocol, different connection setup.
+// Driver is the write-side execution contract every lake-orm driver
+// implements: run an ExecutionPlan the Dialect produced, honour the
+// two-phase Finalizer lifecycle, and expose a raw Exec escape hatch
+// for DDL and one-off DML the typed surface doesn't cover.
+//
+// Read-side decoding is a separate capability the driver optionally
+// implements — see drivers.Convertible in the drivers package. The
+// split is deliberate: writes are planned and dispatched by the
+// Dialect + Driver; reads come in as driver-native Source closures
+// the Convertible impl decodes into user-declared Go types. That
+// separation is what lets lake-orm avoid owning a query grammar.
+//
+// Concrete v0 drivers live under the drivers/ sibling:
+//
+//   - drivers/spark             — generic Spark Connect
+//   - drivers/databricksconnect — Databricks Connect (OAuth M2M)
+//   - drivers/databricks        — Databricks native (BYO *sql.DB)
+//   - drivers/duckdb            — embedded DuckDB (CGO)
+//
+// All four satisfy this interface plus drivers.Convertible.
 type Driver interface {
 	Name() string
 
@@ -14,14 +31,6 @@ type Driver interface {
 	// Single-phase plans (e.g. small-batch direct ingest) return a
 	// no-op Finalizer so callers never need to branch.
 	Execute(ctx context.Context, plan ExecutionPlan) (Result, Finalizer, error)
-
-	// ExecuteStreaming runs a read plan and returns a pull-based row
-	// stream. No finalizer — reads don't stage.
-	ExecuteStreaming(ctx context.Context, plan ExecutionPlan) (RowStream, error)
-
-	// DataFrame is the escape hatch — raw SQL to a DataFrame that the
-	// caller can then chain Spark operations on.
-	DataFrame(ctx context.Context, sql string, args ...any) (DataFrame, error)
 
 	// Exec runs a SQL statement that returns no rows (DDL, DML that
 	// doesn't need the Dialect-planned path).
@@ -39,7 +48,8 @@ type Finalizer interface {
 }
 
 // Result is the outcome of a single ExecutionPlan that did not produce
-// rows (writes, DDL). Reads return a RowStream instead.
+// rows (writes, DDL). Reads return their decoded values directly via
+// the drivers.Convertible capability.
 type Result struct {
 	RowsAffected int64
 }

@@ -10,7 +10,7 @@
 //   - lakeorm.Validate before any I/O (HTTP-handler pattern)
 //   - Insert via the object-storage fast path (partition writer + Spark ingest)
 //   - Streaming read with constant memory
-//   - DataFrame escape hatch for native Spark operations
+//   - Typed count via a result-shape struct (CQRS read projection)
 package main
 
 import (
@@ -57,11 +57,8 @@ func main() {
 	// server (docker-compose / Helm chart) — Hadoop-catalog rooted
 	// at the s3a:// warehouse. The Dialect just names it so queries
 	// get qualified as <catalog>.<db>.<table>.
-	db, err := lakeorm.Open(
-		spark.Remote(sparkURI),
-		iceberg.Dialect(),
-		store,
-	)
+	drv := spark.Remote(sparkURI)
+	db, err := lakeorm.Open(drv, iceberg.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -100,7 +97,7 @@ func main() {
 	// place (auditable, reviewable); the spark:"..." tags on User bind
 	// result columns to fields.
 	for user, err := range lakeorm.QueryStream[User](
-		ctx, db, `SELECT * FROM users WHERE country = ?`, "UK",
+		ctx, db, drv.FromSQL(`SELECT * FROM users WHERE country = ?`, "UK"),
 	) {
 		if err != nil {
 			log.Printf("stream: %v", err)
@@ -109,15 +106,19 @@ func main() {
 		fmt.Printf("read: %s %s\n", user.ID, user.Email)
 	}
 
-	// Escape hatch — drop to raw DataFrame for Spark ops outside the
-	// typed CRUD surface.
-	df, err := db.DataFrame(ctx, `SELECT * FROM users WHERE country = ?`, "UK")
+	// Typed count via a result-shape struct. The CQRS read surface
+	// binds arbitrary SELECTs to projection types — no DataFrame
+	// escape hatch needed for common shapes.
+	type Count struct {
+		N int64 `spark:"n"`
+	}
+	total, err := lakeorm.QueryFirst[Count](ctx, db,
+		drv.FromSQL(`SELECT COUNT(*) AS n FROM users WHERE country = ?`, "UK"))
 	if err != nil {
-		log.Printf("dataframe: %v", err)
+		log.Printf("count: %v", err)
 		return
 	}
-	n, _ := df.Count(ctx)
-	fmt.Printf("count: %d\n", n)
+	fmt.Printf("count: %d\n", total.N)
 }
 
 func envOr(key, def string) string {

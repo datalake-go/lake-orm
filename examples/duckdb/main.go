@@ -4,10 +4,10 @@
 //
 // Uses lake-orm's DuckDB driver against an in-memory DuckDB handle
 // and lake-orm's in-memory backend. The same ORM surface — `lake:`
-// tags, Migrate, Insert, Query[T], Stream, DataFrame escape hatch —
-// works identically against this driver and the Spark-family
-// drivers. Use this for unit / integration tests, local iteration,
-// and single-process analytics workloads.
+// tags, Migrate, Insert, Query[T] over drv.FromSQL(...) — works
+// identically against this driver and the Spark-family drivers.
+// Use this for unit / integration tests, local iteration, and
+// single-process analytics workloads.
 //
 // CGO note: go-duckdb links against the DuckDB C++ library via CGO.
 // Builds with CGO_ENABLED=0 will fail. Pre-compiled DuckDB binaries
@@ -58,11 +58,8 @@ func main() {
 	// one process with no filesystem writes.
 	store := backends.Memory("duckdb-example")
 
-	client, err := lakeorm.Open(
-		duckdbdriver.Driver(db),
-		duckdbdialect.Dialect(),
-		store,
-	)
+	drv := duckdbdriver.New(db)
+	client, err := lakeorm.Open(drv, duckdbdialect.Dialect(), store)
 	if err != nil {
 		log.Fatalf("lakeorm.Open: %v", err)
 	}
@@ -85,11 +82,12 @@ func main() {
 		log.Fatalf("Insert: %v", err)
 	}
 
-	// Typed read via Query[T]. The generic materialisation path goes
-	// through lake-orm's reflection scanner when the driver isn't
-	// Spark — same API, different transport.
+	// Typed read via Query[T] + drv.FromSQL. The generic decode path
+	// goes through lake-orm's reflection scanner — same API shape as
+	// the Spark drivers, different native transport (*sql.Rows here,
+	// sparksql.DataFrame for Spark).
 	ukUsers, err := lakeorm.Query[User](ctx, client,
-		`SELECT id, email, country, created_at FROM users WHERE country = ? ORDER BY email`, "UK")
+		drv.FromSQL(`SELECT id, email, country, created_at FROM users WHERE country = ? ORDER BY email`, "UK"))
 	if err != nil {
 		log.Fatalf("Query: %v", err)
 	}
@@ -97,12 +95,19 @@ func main() {
 		fmt.Printf("%s  %s  %s\n", u.ID, u.Email, u.Country)
 	}
 
-	// DataFrame escape hatch for joins / aggregates.
-	df, err := client.DataFrame(ctx,
-		`SELECT country, COUNT(*) AS n FROM users GROUP BY country ORDER BY n DESC`)
-	if err != nil {
-		log.Fatalf("DataFrame: %v", err)
+	// Typed join / aggregate — same Query[T] shape with a result-
+	// shape struct (CountryCount). CQRS: read types are projections,
+	// distinct from the persisted User type.
+	type CountryCount struct {
+		Country string `lake:"country"`
+		N       int64  `lake:"n"`
 	}
-	n, _ := df.Count(ctx)
-	fmt.Printf("%d distinct countries\n", n)
+	counts, err := lakeorm.Query[CountryCount](ctx, client,
+		drv.FromSQL(`SELECT country, COUNT(*) AS n FROM users GROUP BY country ORDER BY n DESC`))
+	if err != nil {
+		log.Fatalf("Query CountryCount: %v", err)
+	}
+	for _, c := range counts {
+		fmt.Printf("%s: %d\n", c.Country, c.N)
+	}
 }
