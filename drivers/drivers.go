@@ -25,7 +25,7 @@
 // Per-driver conversion helpers — FromSQL / FromDataFrame / FromRows /
 // FromTable / FromRow, each a method on the concrete driver type —
 // build the Source for common cases so callers write one line instead
-// of six:
+// of six.
 //
 //	drv := db.Driver().(*spark.Driver)
 //	users, _ := lakeorm.Query[User](ctx, db, drv.FromSQL("SELECT * FROM users"))
@@ -196,6 +196,40 @@ const (
 // non-nil native value, so the lifecycle always closes cleanly
 // even if iteration returns early.
 type Source func(ctx context.Context) (native any, cleanup func(), err error)
+
+
+
+// A quick note on Convertable: 
+// Pre-iter.Seq2, Go had no standard way to express "a sequence of
+// values you pull lazily." So if you wanted to ship a streaming API,
+// you had to invent an interface, and that interface inevitably
+// ended up carrying both jobs. sql.Rows is the canonical example
+// but it's everywhere: bufio.Scanner, sql.Rows, *json.Decoder in
+// streaming mode, every custom Iterator type in every library. They
+// all conflate "I am a resource" with "I am a sequence" because the
+// language didn't give you a way to separate them.
+//
+// Convertible is the read-side capability. It exists so lake-orm
+// never has to own a query grammar, such as sql.Rows or DataFrames,
+// because we want to be able to support the underlying driver
+// callsites regardless of what drivers we pick.
+//
+// Instead, we use a source closure that produces the driver's native
+// row source (a Spark DataFrame, a *sql.Rows, an Arrow Record,
+// whatever the driver decides is canonical), and the driver decodes
+// each row into the user-supplied Go type. Drivers that implement
+// Convertible participate in lakeorm.Query[T] / QueryStream[T] /
+// QueryFirst[T]. All we care about is whether our response is a
+// congruent array or a stream of Ts, which I think is much better
+// design than shoving a specific predicate down the throat of every
+// callsite, as we have seen before.
+//
+// The advantage here is we can support different kinds of formats
+// and provide a single contract which says "as long as you can
+// return type T, I don't care what your query actually looks like".
+// The contract the driver agrees to is narrow: given a Source and a
+// target T, produce Ts. How the query is expressed, how rows are
+// transported, and how decoding happens are all the driver's concern.
 
 // Convertible is the optional driver capability: given a Source
 // that produces the driver's own native row type, decode each row
