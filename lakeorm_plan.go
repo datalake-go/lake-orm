@@ -89,31 +89,6 @@ type WriteRequest struct {
 	Options       map[string]any // dialect-specific overrides
 }
 
-// QueryRequest is what the Client hands the Dialect on query execution.
-type QueryRequest struct {
-	Ctx      context.Context
-	Schema   *structs.LakeSchema
-	Table    string
-	Columns  []string
-	Where    string
-	WhereArg []any
-	OrderBy  []OrderSpec
-	Limit    int
-	Offset   int
-}
-
-// OrderSpec is a single column + direction for Query / QueryBuilder.
-type OrderSpec struct {
-	Column string
-	Desc   bool
-}
-
-// NewOrderSpec builds an OrderSpec for Query / QueryBuilder.
-// desc=true sorts descending; false is ascending.
-func NewOrderSpec(column string, desc bool) OrderSpec {
-	return OrderSpec{Column: column, Desc: desc}
-}
-
 // WritePath is the caller's optional override of the Dialect's routing.
 type WritePath int
 

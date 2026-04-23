@@ -12,7 +12,6 @@ import (
 
 	"github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/structs"
-	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -174,35 +173,6 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 			Prefix:   prefix,
 			Location: req.Backend.StagingLocation(req.IngestID),
 		},
-	}, nil
-}
-
-func (d *dialect) PlanQuery(req lakeorm.QueryRequest) (lakeorm.ExecutionPlan, error) {
-	cols := req.Columns
-	if len(cols) == 0 {
-		cols = req.Schema.ColumnNames()
-	}
-	table := req.Table
-	if table == "" && req.Schema != nil {
-		table = req.Schema.TableName
-	}
-	order := make([]sqlbuild.OrderSpec, 0, len(req.OrderBy))
-	for _, o := range req.OrderBy {
-		order = append(order, sqlbuild.OrderSpec{Column: o.Column, Desc: o.Desc})
-	}
-	sql, args := sqlbuild.Select{
-		Columns: cols,
-		Table:   table,
-		Where:   req.Where,
-		Args:    req.WhereArg,
-		OrderBy: order,
-		Limit:   req.Limit,
-	}.Build()
-	return lakeorm.ExecutionPlan{
-		Kind:   lakeorm.KindStream,
-		SQL:    sql,
-		Args:   args,
-		Schema: req.Schema,
 	}, nil
 }
 

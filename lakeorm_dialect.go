@@ -6,19 +6,21 @@ import (
 )
 
 // Dialect describes the data-dialect opinion: DDL shape, DML shape,
-// and query planning for Iceberg vs Delta vs any future lakehouse
+// and write planning for Iceberg vs Delta vs any future lakehouse
 // dialect. "Data dialect" rather than "format" because it's not just
 // on-disk layout — it covers CREATE TABLE clauses, MERGE semantics,
-// table properties, partition grammar, and projection planning.
+// table properties, and partition grammar.
 // Exactly one Dialect per Client at v0.
 //
 // The interface is deliberately narrow — only the methods the Client
-// actually calls. Read planning goes through PlanQuery; write
-// planning through PlanInsert (which routes between KindDirectIngest,
-// KindParquetIngest, and KindParquetMerge based on batch size and
-// mergeKey presence). structs.IndexStrategy / structs.LayoutStrategy let the
-// Dialect expose its concrete strategy vocabulary for a given tag
-// intent.
+// actually calls. Write planning goes through PlanInsert, which routes
+// between KindDirectIngest, KindParquetIngest, and KindParquetMerge
+// based on batch size and mergeKey presence. Reads don't touch the
+// Dialect — they go through drivers.Convertible with a driver-native
+// Source closure (see lakeorm_query.go).
+//
+// structs.IndexStrategy / structs.LayoutStrategy let the Dialect
+// expose its concrete strategy vocabulary for a given tag intent.
 type Dialect interface {
 	Name() string
 
@@ -32,10 +34,6 @@ type Dialect interface {
 	// on batch size, mergeKey presence, and any caller-supplied
 	// WritePath override.
 	PlanInsert(req WriteRequest) (ExecutionPlan, error)
-
-	// PlanQuery returns the ExecutionPlan for a dynamic
-	// (non-generic) Query/QueryBuilder call.
-	PlanQuery(req QueryRequest) (ExecutionPlan, error)
 
 	// IndexStrategy resolves an `indexed` / `mergeKey` tag intent
 	// into the dialect's concrete strategy descriptor.

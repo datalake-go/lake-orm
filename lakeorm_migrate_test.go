@@ -82,7 +82,6 @@ func (s stubDialect) LayoutStrategy(structs.LayoutIntent) structs.LayoutStrategy
 func (s stubDialect) CreateTableDDL(*structs.LakeSchema, types.Location) (string, error) {
 	return "", nil
 }
-func (s stubDialect) PlanQuery(QueryRequest) (ExecutionPlan, error)  { return ExecutionPlan{}, nil }
 func (s stubDialect) PlanInsert(WriteRequest) (ExecutionPlan, error) { return ExecutionPlan{}, nil }
 
 // TestMigrateGenerate_LegacyStateTriggersIngestIDAdd pins the

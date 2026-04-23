@@ -22,7 +22,6 @@ import (
 
 	"github.com/datalake-go/lake-orm"
 	"github.com/datalake-go/lake-orm/structs"
-	"github.com/datalake-go/lake-orm/internal/sqlbuild"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -306,48 +305,6 @@ func (d *dialect) PlanInsert(req lakeorm.WriteRequest) (lakeorm.ExecutionPlan, e
 		},
 		Options: req.Options,
 	}, nil
-}
-
-// PlanQuery plans a dynamic read — used by Client.Query when the
-// generic Query[T] family isn't suitable.
-func (d *dialect) PlanQuery(req lakeorm.QueryRequest) (lakeorm.ExecutionPlan, error) {
-	cols := req.Columns
-	if len(cols) == 0 {
-		cols = req.Schema.ColumnNames()
-	}
-	table := req.Table
-	if table == "" && req.Schema != nil {
-		table = req.Schema.TableName
-	}
-	sql, args := sqlbuild.Select{
-		Columns: cols,
-		Table:   d.qualify(table),
-		Where:   req.Where,
-		Args:    req.WhereArg,
-		OrderBy: toBuildOrder(req.OrderBy),
-		Limit:   req.Limit,
-		Offset:  req.Offset,
-	}.Build()
-	return lakeorm.ExecutionPlan{
-		Kind:   lakeorm.KindStream,
-		SQL:    sql,
-		Args:   args,
-		Schema: req.Schema,
-	}, nil
-}
-
-// toBuildOrder converts lakeorm's OrderSpec to sqlbuild.OrderSpec.
-// Separate types so sqlbuild stays importable without pulling in the
-// wider lakeorm package.
-func toBuildOrder(in []lakeorm.OrderSpec) []sqlbuild.OrderSpec {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]sqlbuild.OrderSpec, len(in))
-	for i, o := range in {
-		out[i] = sqlbuild.OrderSpec{Column: o.Column, Desc: o.Desc}
-	}
-	return out
 }
 
 func goTypeToIceberg(t any) (string, error) {
