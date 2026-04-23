@@ -20,11 +20,13 @@ import (
 	"fmt"
 
 	"golang.org/x/sync/semaphore"
+
+	"github.com/datalake-go/lake-orm/backends"
 )
 
 // Open composes a Client from a Driver, a Dialect, a Backend, and
 // options. All three positional arguments are required.
-func Open(driver Driver, dialect Dialect, backend Backend, opts ...ClientOption) (Client, error) {
+func Open(driver Driver, dialect Dialect, backend backends.Backend, opts ...ClientOption) (Client, error) {
 	if driver == nil {
 		return nil, fmt.Errorf("lakeorm.Open: driver is required")
 	}

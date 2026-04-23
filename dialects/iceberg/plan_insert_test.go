@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	lakeorm "github.com/datalake-go/lake-orm"
-	"github.com/datalake-go/lake-orm/structs"
+	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/dialects/iceberg"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/testutils"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -27,7 +28,7 @@ type bookUpsert struct {
 // Only the methods PlanInsert's fast-path branch touches are
 // implemented; everything else would panic on reach, which is the
 // correct signal that routing went wrong.
-type fakeBackend struct{ lakeorm.Backend }
+type fakeBackend struct{ backends.Backend }
 
 func (fakeBackend) StagingPrefix(ingestID string) string  { return "s3://b/staging/" + ingestID }
 func (fakeBackend) StagingLocation(string) types.Location { return types.Location{} }

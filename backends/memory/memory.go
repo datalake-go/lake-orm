@@ -14,7 +14,7 @@ import (
 	"github.com/datalake-go/lake-orm/types"
 )
 
-// Backend is an in-memory implementation of lakeorm.Backend.
+// Backend is an in-memory implementation of backends.Backend.
 type Backend struct {
 	mu   sync.RWMutex
 	data map[string][]byte

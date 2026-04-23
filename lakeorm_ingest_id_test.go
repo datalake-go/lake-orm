@@ -1,7 +1,6 @@
 package lakeorm
 
 import (
-	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"errors"
 	"reflect"
@@ -10,7 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/datalake-go/lake-orm/backends"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
+	"github.com/datalake-go/lake-orm/structs"
 )
 
 // --- _ingest_id is a system column; user-declared use rejected -----
@@ -76,7 +78,7 @@ func TestExtractUUIDv7Timestamp_RoundTrips(t *testing.T) {
 // CleanupStaging touches: Name, CleanupStaging-by-URI, and the
 // optional StagingLister extension.
 type fakeStagingBackend struct {
-	Backend
+	backends.Backend
 	prefixes      []StagingPrefix
 	listErr       error
 	deletedURIs   []string
@@ -135,7 +137,7 @@ func TestCleanupStaging_DeletesOnlyExpiredUUIDv7Prefixes(t *testing.T) {
 
 func TestCleanupStaging_BackendWithoutStagingListerReturnsNotImplemented(t *testing.T) {
 	// A plain Backend that doesn't implement StagingLister.
-	type plainBackend struct{ Backend }
+	type plainBackend struct{ backends.Backend }
 	c := &client{backend: &plainBackend{}}
 	_, err := c.CleanupStaging(context.Background(), 24*time.Hour)
 	if !errors.Is(err, lkerrors.ErrNotImplemented) {

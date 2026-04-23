@@ -27,7 +27,7 @@ import (
 	"github.com/datalake-go/lake-orm/types"
 )
 
-// Backend is the S3 implementation of lakeorm.Backend.
+// Backend is the S3 implementation of backends.Backend.
 type Backend struct {
 	client *s3.Client
 	bucket string

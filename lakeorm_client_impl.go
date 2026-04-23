@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/datalake-go/lake-orm/backends"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -16,7 +17,7 @@ import (
 type client struct {
 	driver  Driver
 	dialect Dialect
-	backend Backend
+	backend backends.Backend
 	cfg     *clientConfig
 	sem     *semaphore.Weighted
 }

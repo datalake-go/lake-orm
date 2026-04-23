@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/backends"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
 	"github.com/datalake-go/lake-orm/types"
 )
@@ -242,7 +243,7 @@ type parquetIngestFinalizer struct {
 	viewSQL   string
 	insertSQL string
 	dropSQL   string
-	backend   lakeorm.Backend
+	backend   backends.Backend
 	prefix    string
 	logger    zerolog.Logger
 	committed bool

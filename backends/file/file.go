@@ -12,7 +12,7 @@ import (
 	"github.com/datalake-go/lake-orm/types"
 )
 
-// Backend is a local-filesystem implementation of lakeorm.Backend. Root is
+// Backend is a local-filesystem implementation of backends.Backend. Root is
 // the lakehouse root directory; table data and staging both live beneath.
 type Backend struct {
 	root string

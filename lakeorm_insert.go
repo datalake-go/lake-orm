@@ -1,14 +1,16 @@
 package lakeorm
 
 import (
-	"github.com/datalake-go/lake-orm/structs"
 	"context"
 	"fmt"
 	"io"
 	"reflect"
 
-	"github.com/datalake-go/lake-orm/internal/parquet"
 	"github.com/parquet-go/parquet-go/compress"
+
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/internal/parquet"
+	"github.com/datalake-go/lake-orm/structs"
 )
 
 // runFastPath executes a KindParquetIngest plan: stream records
@@ -77,8 +79,8 @@ func (c *client) runFastPath(ctx context.Context, plan ExecutionPlan, schema *st
 	return nil
 }
 
-// backendUploader adapts a lakeorm.Backend to fastpath.Uploader.
-type backendUploader struct{ b Backend }
+// backendUploader adapts a backends.Backend to fastpath.Uploader.
+type backendUploader struct{ b backends.Backend }
 
 func (u *backendUploader) Writer(ctx context.Context, key string) (io.WriteCloser, error) {
 	return u.b.Writer(ctx, key)

@@ -1,9 +1,10 @@
 package lakeorm
 
 import (
-	"github.com/datalake-go/lake-orm/structs"
 	"context"
 
+	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
 )
 
@@ -59,7 +60,7 @@ const (
 // partition writer. The Driver reads this to emit the
 // `INSERT ... SELECT FROM parquet.<prefix>/*.parquet` statement.
 type StagingRef struct {
-	Backend  Backend
+	Backend  backends.Backend
 	Prefix   string
 	PartKeys []string
 	Location types.Location
@@ -83,7 +84,7 @@ type WriteRequest struct {
 	// correlation; Idempotency is the contract with the caller for
 	// retry safety. Empty when the caller didn't supply one.
 	Idempotency   string
-	Backend       Backend
+	Backend       backends.Backend
 	FastPathBytes int            // advisory crossover threshold
 	ForcePath     WritePath      // None / ViaGRPC / ViaObjectStorage
 	Options       map[string]any // dialect-specific overrides
