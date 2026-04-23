@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/dialects"
 	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
@@ -109,7 +109,7 @@ func BucketPartition(n int) structs.IndexStrategy {
 var SortOrder structs.LayoutStrategy = "sort_order"
 
 // Dialect constructs the Iceberg data-dialect.
-func Dialect(opts ...DialectOption) lakeorm.Dialect {
+func Dialect(opts ...DialectOption) dialects.Dialect {
 	cfg := newConfig()
 	for _, o := range opts {
 		o(cfg)

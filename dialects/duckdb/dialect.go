@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	lakeorm "github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/dialects"
 	"github.com/datalake-go/lake-orm/drivers"
 	lkerrors "github.com/datalake-go/lake-orm/errors"
 	"github.com/datalake-go/lake-orm/structs"
@@ -55,8 +55,8 @@ func WithSchema(name string) DialectOption {
 	return func(c *config) { c.schema = name }
 }
 
-// Dialect returns a lakeorm.Dialect configured for DuckDB.
-func Dialect(opts ...DialectOption) lakeorm.Dialect {
+// Dialect returns a dialects.Dialect configured for DuckDB.
+func Dialect(opts ...DialectOption) dialects.Dialect {
 	cfg := &config{}
 	for _, o := range opts {
 		o(cfg)

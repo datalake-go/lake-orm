@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/datalake-go/lake-orm"
+	"github.com/datalake-go/lake-orm/dialects"
 	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
@@ -39,7 +39,7 @@ func WithIndexStrategy(col string, s structs.IndexStrategy) DialectOption {
 	}
 }
 
-func Dialect(opts ...DialectOption) lakeorm.Dialect {
+func Dialect(opts ...DialectOption) dialects.Dialect {
 	cfg := &config{indexStrategy: map[string]structs.IndexStrategy{}}
 	for _, o := range opts {
 		o(cfg)

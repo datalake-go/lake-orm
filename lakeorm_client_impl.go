@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/datalake-go/lake-orm/backends"
+	"github.com/datalake-go/lake-orm/dialects"
 	"github.com/datalake-go/lake-orm/drivers"
 	"github.com/datalake-go/lake-orm/structs"
 	"github.com/datalake-go/lake-orm/types"
@@ -17,7 +18,7 @@ import (
 // injected dependencies plus the backpressure semaphore.
 type client struct {
 	driver  drivers.Driver
-	dialect Dialect
+	dialect dialects.Dialect
 	backend backends.Backend
 	cfg     *clientConfig
 	sem     *semaphore.Weighted
