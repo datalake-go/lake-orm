@@ -16,7 +16,16 @@
 // Convertible participate in lakeorm.Query[T] / QueryStream[T] /
 // QueryFirst[T]. All we care about is whether our response is a 
 // congruent array or a stream. Which I think is much better design.
-//
+// than shoving a specific predicate down the throat of every callsite.
+// as we have seen before iter.Seq2 with the Rows interface.
+
+// The advantage here is we can support different kinds of formats
+// and provide a single contract which says as long as you can return 
+// my type T, I don't care what your query actually looks like.
+// So you can query whatever it is you want by speaking the language of
+// the implementing driver, rather than having the driver speak the language
+// of database/sql.
+
 // Per-driver conversion helpers — FromSQL / FromDataFrame /
 // FromRows / FromTable / FromRow, each a method on the concrete
 // driver type — build the Source for common cases so callers
