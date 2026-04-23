@@ -47,7 +47,6 @@
 // closure: five lines of glue at the call site, no framework
 // primitives.
 package drivers
-package drivers
 
 import (
 	"context"
